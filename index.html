@@ -10,6 +10,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
@@ -103,7 +105,7 @@
                 <div class="pt-1 md:pt-2">
                     <div class="flex justify-between items-end mb-3 border-b border-gray-200 pb-2">
                         <h3 class="text-[11px] md:text-xs font-bold text-gray-500 uppercase"><i class="fa-solid fa-list-check mr-1"></i> Keterangan</h3>
-                        <span class="text-[10px] md:text-[11px] font-bold text-tjblue bg-blue-50 px-2.5 py-1 rounded">Total: <span id="score-total">0</span> Titik</span>
+                        <span class="text-[10px] md:text-[11px] font-bold text-tjblue bg-blue-50 px-2.5 py-1 rounded">Di Peta: <span id="score-total">0</span> Titik</span>
                     </div>
                     <div id="map-legend" class="space-y-2 md:space-y-2.5"></div>
                 </div>
@@ -136,6 +138,7 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
 
     <script>
         const API_URL = "https://script.google.com/macros/s/AKfycbwcE-rC1hubk0ZuYgR9ZjBIKPv7R5lG35YEEl1ajF9Md5-TbXslqgV9SoYMTLCaU5TJ/exec";
@@ -143,13 +146,35 @@
         let map, allData = [];
         let currentChart = null, activeLegendFilter = null; 
         
-        let boundaryData = { kabupaten: null, kecamatan: null, kelurahan: null, kel_polyline: null };
-        let polyCenters = { KAB: {}, KEC: {}, KEL: {} }; // Penampung Centroid Geografis Presisi
+        // Objek Spasial Statis
+        let boundaryData = { kabupaten: null, kecamatan: null, kelurahan: null };
+        let polyCenters = { KAB: {}, KEC: {}, KEL: {} }; 
+
+        // Pemisahan Layer Geometri Poligon vs Gelembung Klaster Teks
+        let polyLayerKab = L.layerGroup();
+        let polyLayerKec = L.layerGroup();
+        let polyLayerKel = L.layerGroup();
+        let polyLayerLineDesa = L.layerGroup(); // Zoom >=15 (Garis putus-putus tanpa isian/tanpa label)
 
         let layerAdminKab = L.layerGroup();
         let layerAdminKec = L.layerGroup();
         let layerAdminKel = L.layerGroup();
-        let layerTitikDetil = L.layerGroup(); 
+        
+        // Performa Tinggi Mode Titik menggunakan MarkerCluster Radius Pendek (30px)
+        let layerTitikDetil = L.markerClusterGroup({
+            chunkedLoading: true, 
+            maxClusterRadius: 30, 
+            disableClusteringAtZoom: 18, 
+            iconCreateFunction: function(cluster) {
+                const markers = cluster.getAllChildMarkers();
+                const bg = markers[0].options.customBg || "bg-tjblue";
+                const text = markers[0].options.customText || "text-white";
+                return L.divIcon({ 
+                    html: `<div class="${bg} ${text} font-bold rounded-full w-8 h-8 flex items-center justify-center border-2 border-white shadow-xl text-[11px]">${cluster.getChildCount()}</div>`, 
+                    className: '', iconSize: L.point(32, 32) 
+                });
+            }
+        });
 
         Chart.register(ChartDataLabels);
 
@@ -176,7 +201,6 @@
 
         map.on('zoomend', () => { if(allData.length > 0) updateActiveMapLayer(); });
 
-        // FUNGSI NORMALISASI NAMA (Pembersih String agar Spreadsheet & GeoJSON selalu Match)
         function normName(str) {
             return (str || "")
                 .replace(/KOTA ADMINISTRASI\s|KOTA ADM\.\s|KOTA\s|KABUPATEN\s|KAB\.\s/ig, '')
@@ -199,48 +223,78 @@
                 boundaryData.kabupaten = shpKab;
                 boundaryData.kecamatan = shpKec;
                 boundaryData.kelurahan = shpKel;
-                boundaryData.kel_polyline = shpKelGaris; 
 
-                // EKSTRAK TITIK TENGAH POLYGON UNTUK KLASTER PRESISI (Sangat berguna untuk kasus Kab. Bekasi)
+                // 1. Ekstrak Titik Tengah Poligon Asli
                 extractGeoJsonCenters();
 
+                // 2. Render Lapisan Vektor Statis Sekali Saja Saat Startup (Solusi Utama Anti Lag)
+                initStaticPolygons(shpKab, shpKec, shpKel, shpKelGaris);
+
                 document.getElementById('loading-badge').classList.add('hidden');
-                
                 populateFilterDropdowns(); 
                 processAndRenderLayers(); 
                 setTimeout(() => { map.invalidateSize(); }, 500);
             }).catch(err => { 
-                alert("Gagal memuat. Pastikan file GeoJSON ada di repositori Anda dengan nama yang sama persis."); 
+                alert("Gagal memuat. Pastikan berkas GeoJSON aman."); 
                 document.getElementById('loading-badge').classList.add('hidden');
                 console.error(err);
             });
         });
 
         function extractGeoJsonCenters() {
-            // Kita gunakan Leaflet pembantu untuk mendapatkan Bounds dari tiap Polygon
             const tempLayer = L.geoJSON(null);
-            
             boundaryData.kabupaten.features.forEach(f => {
                 tempLayer.addData(f);
-                const center = tempLayer.getBounds().getCenter();
-                polyCenters.KAB[normName(f.properties.WADMKK || f.properties.NAMOBJ)] = center;
+                polyCenters.KAB[normName(f.properties.WADMKK || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter();
                 tempLayer.clearLayers();
             });
             boundaryData.kecamatan.features.forEach(f => {
                 tempLayer.addData(f);
-                const center = tempLayer.getBounds().getCenter();
-                polyCenters.KEC[normName(f.properties.WADMKC || f.properties.NAMOBJ)] = center;
+                polyCenters.KEC[normName(f.properties.WADMKC || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter();
                 tempLayer.clearLayers();
             });
             boundaryData.kelurahan.features.forEach(f => {
                 tempLayer.addData(f);
-                const center = tempLayer.getBounds().getCenter();
-                polyCenters.KEL[normName(f.properties.WADMKD || f.properties.NAMOBJ)] = center;
+                polyCenters.KEL[normName(f.properties.WADMKD || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter();
                 tempLayer.clearLayers();
             });
         }
 
-        // FILTER DROPDOWN: Diambil langsung dari Spreadsheet (allData) agar 100% sinkron
+        // FUNGSI BARU: Inisialisasi Seluruh Poligon Secara Statis (Bebas dari Loop Filtering)
+        function initStaticPolygons(shpKab, shpKec, shpKel, shpKelGaris) {
+            // Poligon Kabupaten
+            L.geoJSON(shpKab, {
+                style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 },
+                onEachFeature: function(feature, layer) {
+                    const nama = feature.properties.WADMKK || "Wilayah";
+                    layer.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${nama}</div>`, { permanent: false, sticky: true });
+                }
+            }).addTo(polyLayerKab);
+
+            // Poligon Kecamatan
+            L.geoJSON(shpKec, {
+                style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 },
+                onEachFeature: function(feature, layer) {
+                    const nama = feature.properties.WADMKC || "Wilayah";
+                    layer.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${nama}</div>`, { permanent: false, sticky: true });
+                }
+            }).addTo(polyLayerKec);
+
+            // Poligon Kelurahan
+            L.geoJSON(shpKel, {
+                style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 },
+                onEachFeature: function(feature, layer) {
+                    const nama = feature.properties.WADMKD || "Wilayah";
+                    layer.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${nama}</div>`, { permanent: false, sticky: true });
+                }
+            }).addTo(polyLayerKel);
+
+            // Garis Batas Kelurahan (Zoom >= 15) -> Sesuai Permintaan: No Fill, No Label, Hanya Garis Putus-putus
+            L.geoJSON(shpKelGaris, {
+                style: { color: "#06367c", weight: 1.5, opacity: 0.5, dashArray: '5, 5', fill: false }
+            }).addTo(polyLayerLineDesa);
+        }
+
         function populateFilterDropdowns() {
             const kabupatenSel = document.getElementById('filter-kab');
             const kabupatenSet = new Set();
@@ -255,16 +309,12 @@
             const kabVal = document.getElementById('filter-kab').value;
             const kecSel = document.getElementById('filter-kec');
             const kelSel = document.getElementById('filter-kel');
-
             kecSel.innerHTML = '<option value="ALL">Semua</option>';
             kelSel.innerHTML = '<option value="ALL">Semua</option>';
             if (kabVal === 'ALL') { processAndRenderLayers(); return; }
-
             const kecSet = new Set();
             allData.forEach(item => {
-                if(normName(item.kabupaten) === kabVal && item.kecamatan && item.kecamatan !== "Tanpa Kecamatan") {
-                    kecSet.add(normName(item.kecamatan));
-                }
+                if(normName(item.kabupaten) === kabVal && item.kecamatan && item.kecamatan !== "Tanpa Kecamatan") kecSet.add(normName(item.kecamatan));
             });
             [...kecSet].sort().forEach(kec => { kecSel.add(new Option(kec, kec)); });
             processAndRenderLayers();
@@ -275,43 +325,13 @@
             const kelSel = document.getElementById('filter-kel');
             kelSel.innerHTML = '<option value="ALL">Semua</option>';
             if (kecVal === 'ALL') { processAndRenderLayers(); return; }
-
             const kelSet = new Set();
             allData.forEach(item => {
-                if(normName(item.kecamatan) === kecVal && item.kelurahan && item.kelurahan !== "Tanpa Kelurahan") {
-                    kelSet.add(normName(item.kelurahan));
-                }
+                if(normName(item.kecamatan) === kecVal && item.kelurahan && item.kelurahan !== "Tanpa Kelurahan") kelSet.add(normName(item.kelurahan));
             });
             [...kelSet].sort().forEach(kel => { kelSel.add(new Option(kel, kel)); });
             processAndRenderLayers();
         }
-
-        function toggleSidebar() { sidebar.style.display = sidebar.style.display === 'none' ? 'flex' : 'none'; if(sidebar.style.display==='flex') sidebar.style.width = ''; setTimeout(() => { map.invalidateSize(); }, 50); }
-        function toggleChart() { const p = document.getElementById('chart-panel-content'), b = document.getElementById('show-chart-btn'); p.classList.toggle('hidden'); b.classList.toggle('hidden'); }
-        window.addEventListener('resize', () => { if(map) map.invalidateSize(); });
-
-        function getSymbology(text, mode) {
-            text = (text || "").toLowerCase();
-            if (mode === 'E') {
-                if (text.includes("tidak ada")) return { id: "e1", label: "Tidak Ada Bus Stop", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-exclamation" };
-                if (text.includes("terhalang")) return { id: "e2", label: "Ada, Namun Terhalang", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-ban" };
-                if (text.includes("rusak")) return { id: "e3", label: "Ada, Kondisi Rusak", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-wrench" };
-                if (text.includes("baik") || text.includes("ada")) return { id: "e4", label: "Ada, Kondisi Baik", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
-            } else if (mode === 'F') {
-                if (text.includes("rusak") || text.includes("vandalisme")) return { id: "f1", label: "Ada, Rusak / Vandalisme", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-wrench" };
-                if (text.includes("tidak ada")) return { id: "f2", label: "Tidak Ada Informasi", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-triangle-exclamation" };
-                if (text.includes("baik") || text.includes("ada")) return { id: "f3", label: "Ada, Kondisi Baik", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
-            } else if (mode === 'G') {
-                if (text.includes("berbahaya")) return { id: "g1", label: "Berbahaya Untuk Berhenti", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-bus-simple" }; 
-                if (text.includes("kriminalitas") || text.includes("penerangan")) return { id: "g2", label: "Potensi Kriminalitas", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-user-secret" }; 
-                if (text.includes("bocor") || text.includes("pinggir")) return { id: "g3", label: "Perlu Halte & Petugas", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-id-card" }; 
-                if (text.includes("aman") || text.includes("mudah")) return { id: "g4", label: "Aman & Ramah Pelanggan", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
-            }
-            return { id: "unk", label: "Data Tidak Spesifik", bg: "bg-gray-300", text: "text-gray-700", hex: "#d1d5db", icon: "fa-circle-question" };
-        }
-
-        function resetLegendAndFilter() { activeLegendFilter = null; processAndRenderLayers(); }
-        function toggleLegendFilter(id) { activeLegendFilter = (activeLegendFilter === id) ? null : id; processAndRenderLayers(); }
 
         function processAndRenderLayers() {
             const searchVal = document.getElementById('search-input').value.toLowerCase();
@@ -321,13 +341,10 @@
             const kelurahanVal = document.getElementById('filter-kel').value;
             const viewMode = document.getElementById('view-mode').value;
             
-            const modeNames = { 'E': 'Ketersediaan Bus Stop', 'F': 'Papan Informasi Rute', 'G': 'Kondisi Tempat Tunggu' };
-            document.getElementById('chart-subtitle').innerText = "Berdasarkan " + modeNames[viewMode];
-
             layerAdminKab.clearLayers();
             layerAdminKec.clearLayers();
             layerAdminKel.clearLayers();
-            layerTitikDetil.clearLayers();
+            layerTitikDetil.clearLayers(); 
 
             let countTotalSearched = 0, countMapRendered = 0; 
             let summaryStats = {};
@@ -356,13 +373,13 @@
                     if(!summaryStats[sym.id]) summaryStats[sym.id] = { id: sym.id, label: sym.label, count: 0, hex: sym.hex, bg: sym.bg, text: sym.text, icon: sym.icon };
                     summaryStats[sym.id].count++;
 
+                    // --- LEGENDA KLIK AKTIF (MUTABLE CONDITIONS) ---
                     if (!activeLegendFilter || activeLegendFilter === sym.id) {
                         countMapRendered++;
 
-                        // Titik Detil (Zoom >= 15)
                         const htmlIcon = `<div class="w-7 h-7 md:w-8 md:h-8 rounded-full ${sym.bg} ${sym.text} border-2 border-white flex items-center justify-center shadow-lg hover:scale-125 transition-transform"><i class="fa-solid ${sym.icon} text-[11px] md:text-[13px]"></i></div>`;
                         const markerIcon = L.divIcon({ html: htmlIcon, className: '', iconSize: L.point(32,32), iconAnchor: [16,16] });
-                        const marker = L.marker([item.lat, item.lng], { icon: markerIcon });
+                        const marker = L.marker([item.lat, item.lng], { icon: markerIcon, customBg: sym.bg, customText: sym.text });
                         marker.bindPopup(() => createPopupContent(item, sym), { className: 'custom-popup' });
                         layerTitikDetil.addLayer(marker);
 
@@ -373,9 +390,10 @@
                 }
             });
 
-            renderSemanticLayer(layerAdminKab, grupKab, boundaryData.kabupaten, "Kabupaten / Kota");
-            renderSemanticLayer(layerAdminKec, grupKec, boundaryData.kecamatan, "Kecamatan");
-            renderSemanticLayer(layerAdminKel, grupKel, boundaryData.kelurahan, "Kelurahan");
+            // Hanya me-render bulatan teks angka klaster, poligonnya sudah dipisah aman di latar belakang
+            renderSemanticLayer(layerAdminKab, grupKab, "Kabupaten / Kota");
+            renderSemanticLayer(layerAdminKec, grupKec, "Kecamatan");
+            renderSemanticLayer(layerAdminKel, grupKel, "Kelurahan");
 
             updateActiveMapLayer();
 
@@ -389,29 +407,13 @@
             groupObj[key].latSum += parseFloat(item.lat);
             groupObj[key].lngSum += parseFloat(item.lng);
             groupObj[key].count++;
-            
             const colorKey = `${bgStr}|${textStr}`;
             groupObj[key].colors[colorKey] = (groupObj[key].colors[colorKey] || 0) + 1;
         }
 
-        function renderSemanticLayer(targetLayerGroup, aggregatedDataObj, polygonGeojsonObj, levelName) {
-            // 1. Tambahkan GeoJSON Overlay (dengan Tooltip Hover agar tidak berantakan)
-            L.geoJSON(polygonGeojsonObj, {
-                style: function() { return { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }; },
-                onEachFeature: function(feature, layer) {
-                    const nama = feature.properties.WADMKD || feature.properties.WADMKC || feature.properties.WADMKK || "Wilayah";
-                    // Tooltip sekarang hanya muncul saat kursor diarahkan (hover) dan mengikuti gerak kursor (sticky)
-                    layer.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${nama}</div>`, { 
-                        permanent: false, sticky: true, direction: 'auto', className: 'bg-transparent border-none shadow-none' 
-                    });
-                }
-            }).addTo(targetLayerGroup);
-
-            // 2. Tambahkan Marker Klaster (Memanfaatkan presisi Geometric Center)
+        function renderSemanticLayer(targetLayerGroup, aggregatedDataObj, levelName) {
             for (const key in aggregatedDataObj) {
                 const grp = aggregatedDataObj[key];
-                
-                // Cek apakah polygon memiliki titik tengah presisi, jika tidak gunakan rata-rata
                 let center = null;
                 if(levelName === "Kabupaten / Kota") center = polyCenters.KAB[key];
                 else if(levelName === "Kecamatan") center = polyCenters.KEC[key];
@@ -440,38 +442,31 @@
             const z = map.getZoom();
             const levelIndicator = document.getElementById('indicator-level');
 
-            map.removeLayer(layerAdminKab);
-            map.removeLayer(layerAdminKec);
-            map.removeLayer(layerAdminKel);
-            map.removeLayer(layerTitikDetil);
+            // Reset seluruh visualisasi peta
+            map.removeLayer(layerAdminKab); map.removeLayer(layerAdminKec); map.removeLayer(layerAdminKel); map.removeLayer(layerTitikDetil);
+            map.removeLayer(polyLayerKab); map.removeLayer(polyLayerKec); map.removeLayer(polyLayerKel); map.removeLayer(polyLayerLineDesa);
 
-            // Pergeseran Batas Zoom sesuai instruksi baru
-            if (z < 12) {
-                map.addLayer(layerAdminKab);
+            // Manajemen Lapangan Mengikuti Konteks Semantik Zoom Anda
+            if (z < 11) {
+                map.addLayer(polyLayerKab); map.addLayer(layerAdminKab);
                 levelIndicator.innerText = "Kabupaten / Kota";
-            } else if (z >= 12 && z <= 13) { // Zoom 13 masih masuk Kecamatan
-                map.addLayer(layerAdminKec);
+            } else if (z >= 11 && z <= 13) {
+                map.addLayer(polyLayerKec); map.addLayer(layerAdminKec);
                 levelIndicator.innerText = "Kecamatan";
             } else if (z === 14) {
-                map.addLayer(layerAdminKel);
+                map.addLayer(polyLayerKel); map.addLayer(layerAdminKel);
                 levelIndicator.innerText = "Kelurahan";
             } else {
-                map.addLayer(layerTitikDetil);
-                // Menambahkan Polyline Garis Desa tanpa Label dan tanpa Fill (Fill: False) di Zoom >= 15
-                L.geoJSON(boundaryData.kel_polyline, {
-                    style: { color: "#06367c", weight: 1.5, opacity: 0.5, dashArray: '5, 5', fill: false } 
-                }).addTo(layerTitikDetil); 
+                map.addLayer(polyLayerLineDesa); map.addLayer(layerTitikDetil);
                 levelIndicator.innerText = "Mode Titik Detil Individual";
             }
         }
 
+        // --- INTERAKTIVITAS KLIK LEGENDA KEMBALI DILESTARIKAN (100% SINKRON) ---
         function updateScorecardAndChart(statsArray, totalCount) {
             const legendDiv = document.getElementById('map-legend');
             legendDiv.innerHTML = '';
-            
-            let chartLabels = [];
-            let chartData = [];
-            let chartColors = [];
+            let chartLabels = [], chartData = [], chartColors = [];
 
             statsArray.forEach(stat => {
                 const percentage = totalCount > 0 ? ((stat.count / totalCount) * 100).toFixed(1) + '%' : '0%';
@@ -479,6 +474,7 @@
                 const opacityClass = (activeLegendFilter && !isActive) ? 'opacity-40 grayscale-[30%]' : 'opacity-100 hover:bg-blue-50';
                 const ringClass = isActive ? 'ring-2 ring-tjblue ring-offset-2 bg-blue-50' : 'bg-gray-50';
 
+                // onclick ditaruh kembali dengan selamat!
                 legendDiv.innerHTML += `
                     <div onclick="toggleLegendFilter('${stat.id}')" class="legend-item flex items-center justify-between ${ringClass} ${opacityClass} p-2 md:p-2.5 rounded-lg border border-gray-200 cursor-pointer transition-all duration-200">
                         <div class="flex items-center">
@@ -499,7 +495,7 @@
             if(window.getComputedStyle(canvasWrapper).display !== 'none') {
                 const ctx = document.getElementById('donutChart').getContext('2d');
                 if (currentChart) currentChart.destroy(); 
-                currentChart = new Chart(ctx, { type: 'doughnut', data: { labels: chartLabels, datasets: [{ data: chartData, backgroundColor: chartColors, borderWidth: 2, borderColor: '#ffffff', hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, layout: { padding: { bottom: 15 } }, cutout: '55%', plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, padding: 10, font: { size: 11, family: 'PT Sans', weight: 'bold' }, color: '#4b5563' } }, tooltip: { bodyFont: { family: 'PT Sans' }, titleFont: { family: 'PT Sans' }, callbacks: { label: function(context) { return ` ${context.label}: ${context.raw} Titik`; } } }, datalabels: { color: '#ffffff', font: { weight: 'bold', size: 12, family: 'PT Sans' }, formatter: (value, ctx) => { let sum = 0; let dataArr = ctx.chart.data.datasets[0].data; dataArr.map(data => { sum += data; }); if(value === 0) return ''; return (value * 100 / sum).toFixed(1) + "%"; } } } } });
+                currentChart = new Chart(ctx, { type: 'doughnut', data: { labels: chartLabels, datasets: [{ data: chartData, backgroundColor: chartColors, borderWidth: 2, borderColor: '#ffffff', hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '55%', plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, padding: 10, font: { size: 11, family: 'PT Sans', weight: 'bold' }, color: '#4b5563' } }, tooltip: { bodyFont: { family: 'PT Sans' }, titleFont: { family: 'PT Sans' }, callbacks: { label: function(context) { return ` ${context.label}: ${context.raw} Titik`; } } }, datalabels: { color: '#ffffff', font: { weight: 'bold', size: 12, family: 'PT Sans' }, formatter: (value, ctx) => { let sum = 0; let dataArr = ctx.chart.data.datasets[0].data; dataArr.map(data => { sum += data; }); if(value === 0) return ''; return (value * 100 / sum).toFixed(1) + "%"; } } } } });
             }
         }
 
@@ -514,15 +510,4 @@
                 <div class="flex flex-col bg-white rounded-xl font-['PT_Sans']">
                     <div class="${sym.bg} ${sym.text} px-4 py-3 flex items-center justify-between rounded-t-xl"><div class="pr-2"><h4 class="font-bold text-[13px] md:text-[15px] uppercase tracking-wider mb-1">${item.nama}</h4><span class="inline-block bg-white/20 backdrop-blur-sm text-${sym.text} text-[9px] md:text-[11px] px-2 py-0.5 rounded shadow-sm border border-white/30"><i class="fa-solid fa-route mr-1.5"></i>RUTE: <strong class="font-bold">${item.rute || '-'}</strong></span></div><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/40 shadow-inner"><i class="fa-solid ${sym.icon} text-lg md:text-xl"></i></div></div>
                     <div class="px-4 py-3 text-[11px] md:text-[12px] text-gray-600 space-y-2 bg-white">
-                        <div class="flex flex-col border-b border-gray-100 pb-1.5"><span class="font-bold text-gray-400 uppercase tracking-wider text-[9px] md:text-[10px]">Administrasi</span><span class="font-bold text-tjblue text-[11px] md:text-[12px]"><i class="fa-solid fa-map-location-dot mr-1.5 opacity-60"></i> ${item.lokasi || `Kel. ${item.kelurahan}, Kec. ${item.kecamatan}, ${item.kabupaten}`}</span></div>
-                        <div class="flex flex-col border-b border-gray-100 pb-1.5"><span class="font-bold text-gray-400 uppercase tracking-wider">Bus Stop (E)</span><span class="font-bold text-gray-800 text-[12px] md:text-[13px]">${item.kondisiE || '-'}</span></div>
-                        <div class="flex flex-col border-b border-gray-100 pb-1.5"><span class="font-bold text-gray-400 uppercase tracking-wider">Papan Rute (F)</span><span class="font-bold text-gray-800 text-[12px] md:text-[13px]">${item.kondisiF || '-'}</span></div>
-                        <div class="flex flex-col"><span class="font-bold text-gray-400 uppercase tracking-wider">Area Tunggu (G)</span><span class="font-bold text-gray-800 text-[12px] md:text-[13px]">${item.kondisiG || '-'}</span></div>
-                    </div>
-                    <div class="px-4 py-2.5 bg-yellow-50/50 border-t border-gray-100"><span class="block text-[10px] font-bold text-gray-500 uppercase mb-1"><i class="fa-solid fa-comment-dots mr-1"></i> Catatan Surveyor</span><p class="text-[11px] md:text-[12px] text-gray-700 leading-relaxed">${item.keterangan || '<span class="italic opacity-50">Tidak ada catatan</span>'}</p></div>
-                    <div class="flex w-full rounded-b-xl overflow-hidden">${btnDirections}${btnDokumentasi}</div>
-                </div>`;
-        }
-    </script>
-</body>
-</html>
+                        <div class="flex flex-col border-b border-gray-100 pb-1.5"><span class="font-bold text-gray-400 uppercase tracking-wider text-[9px] md:text-[10px]">Administrasi</span><span class="font-bold text-tjblue text-[11px] md:text-[12px]"><i class="fa
