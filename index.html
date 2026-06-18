@@ -230,29 +230,40 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             Promise.all([
-                fetch(API_URL).then(res => res.json()),
+                fetch(API_URL).then(async res => {
+                    // Detektif API
+                    const text = await res.text();
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        throw new Error("API Google terblokir atau mengembalikan Error HTML. Isi pesan: " + text.substring(0, 100) + "...");
+                    }
+                }),
                 fetchGeoJSON('Jakarta_Kabupaten_Kota.geojson'),
                 fetchGeoJSON('Jakarta_Kecamatan.geojson'),
                 fetchGeoJSON('Jakarta_Desa.geojson'),
                 fetchGeoJSON('Jakarta_Desa_Line.geojson')
             ])
             .then(([data, shpKab, shpKec, shpKel, shpKelGaris]) => {
-                if(data.error) { alert(data.error); return; }
+                if(data.error) { throw new Error("Error dari Spreadsheet: " + data.error); }
                 allData = data;
                 boundaryData.kabupaten = shpKab;
                 boundaryData.kecamatan = shpKec;
                 boundaryData.kelurahan = shpKel;
+                boundaryData.kel_polyline = shpKelGaris; 
 
                 extractGeoJsonCenters();
                 initStaticPolygons(shpKab, shpKec, shpKel, shpKelGaris);
 
                 document.getElementById('loading-badge').classList.add('hidden');
-                
                 populateFilterDropdowns(); 
+                processAndRenderLayers(); 
                 setTimeout(() => { map.invalidateSize(); }, 500);
             }).catch(err => { 
-                alert("Data Spreadsheet gagal disinkronkan."); 
+                // ALERT SEKARANG AKAN MENYEBUTKAN ALASAN SPESIFIKNYA!
+                alert("GAGAL MEMUAT DATA:\n\n" + err.message); 
                 document.getElementById('loading-badge').classList.add('hidden');
+                console.error(err);
             });
         });
 
