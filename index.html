@@ -50,7 +50,7 @@
             </div>
         </div>
         <div id="loading-badge" class="px-2 md:px-5 py-1 md:py-2 text-[9px] md:text-xs bg-tjorange text-tjblue font-bold rounded-full animate-pulse shadow-md flex items-center shrink-0">
-            <i class="fa-solid fa-satellite-dish mr-1 md:mr-2 animate-spin"></i> <span class="hidden md:inline">Mensinkronisasi Data...</span><span class="inline md:hidden">Sync...</span>
+            <i class="fa-solid fa-satellite-dish mr-1 md:mr-2 animate-spin"></i> <span class="hidden md:inline">Syncing...</span><span class="inline md:hidden">Sync...</span>
         </div>
     </header>
 
@@ -119,7 +119,7 @@
             
             <div id="hierarchy-indicator" class="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-tjblue text-white px-4 py-1.5 rounded-full shadow-lg text-[10px] md:text-xs font-bold flex items-center border border-blue-400 opacity-90 transition-opacity">
                 <i class="fa-solid fa-magnifying-glass-location mr-2 text-tjorange animate-pulse"></i>
-                Klaster: <span id="indicator-level" class="ml-1 font-extrabold uppercase">Memuat...</span>
+                Klaster: <span id="indicator-level" class="ml-1 font-extrabold uppercase">Syncing...</span>
             </div>
 
             <div id="map" class="flex-1 w-full h-full"></div>
@@ -375,4 +375,207 @@
                 if (text.includes("tidak ada")) return { id: "f2", label: "Tidak Ada Informasi", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-triangle-exclamation" };
                 if (text.includes("baik") || text.includes("ada")) return { id: "f3", label: "Ada, Kondisi Baik", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
             } else if (mode === 'G') {
-                if (text.
+                if (text.includes("berbahaya")) return { id: "g1", label: "Berbahaya Untuk Berhenti", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-bus-simple" }; 
+                if (text.includes("kriminalitas") || text.includes("penerangan")) return { id: "g2", label: "Potensi Kriminalitas", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-user-secret" }; 
+                if (text.includes("bocor") || text.includes("pinggir")) return { id: "g3", label: "Perlu Halte & Petugas", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-id-card" }; 
+                if (text.includes("aman") || text.includes("mudah")) return { id: "g4", label: "Aman & Ramah Pelanggan", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
+            }
+            return { id: "unk", label: "Data Tidak Spesifik", bg: "bg-gray-300", text: "text-gray-700", hex: "#d1d5db", icon: "fa-circle-question" };
+        }
+
+        function resetLegendAndFilter() { activeLegendFilter = null; processAndRenderLayers(); }
+        
+        function toggleLegendFilter(id) { 
+            activeLegendFilter = (activeLegendFilter === id) ? null : id; 
+            processAndRenderLayers(); 
+        }
+
+        function processAndRenderLayers() {
+            const searchVal = document.getElementById('search-input').value.toLowerCase();
+            const routeVal = document.getElementById('route-input').value.toLowerCase(); 
+            const kabupatenVal = document.getElementById('filter-kab').value;
+            const kecamatanVal = document.getElementById('filter-kec').value;
+            const kelurahanVal = document.getElementById('filter-kel').value;
+            const viewMode = document.getElementById('view-mode').value;
+            
+            const modeNames = { 'E': 'Ketersediaan Bus Stop', 'F': 'Papan Informasi Rute', 'G': 'Kondisi Tempat Tunggu' };
+            document.getElementById('chart-subtitle').innerText = "Berdasarkan " + modeNames[viewMode];
+
+            layerAdminKab.clearLayers();
+            layerAdminKec.clearLayers();
+            layerAdminKel.clearLayers();
+            layerTitikDetil.clearLayers(); 
+
+            let countTotalSearched = 0, countMapRendered = 0; 
+            let summaryStats = {};
+            let grupKab = {}, grupKec = {}, grupKel = {};
+
+            allData.forEach(item => {
+                const matchS = !searchVal || item.nama.toLowerCase().includes(searchVal);
+                const matchR = !routeVal || (item.rute && item.rute.toLowerCase().includes(routeVal)); 
+                
+                const fItemKab = normName(item.kabupaten);
+                const fItemKec = normName(item.kecamatan);
+                const fItemKel = normName(item.kelurahan);
+
+                const matchKab = kabupatenVal === 'ALL' || fItemKab === kabupatenVal;
+                const matchKec = kecamatanVal === 'ALL' || fItemKec === kecamatanVal;
+                const matchKel = kelurahanVal === 'ALL' || fItemKel === kelurahanVal;
+
+                if (matchS && matchR && matchKab && matchKec && matchKel) {
+                    countTotalSearched++;
+                    let valToEvaluate = item.kondisiE;
+                    if(viewMode === 'F') valToEvaluate = item.kondisiF;
+                    if(viewMode === 'G') valToEvaluate = item.kondisiG;
+                    
+                    const sym = getSymbology(valToEvaluate, viewMode);
+                    
+                    if(!summaryStats[sym.id]) summaryStats[sym.id] = { id: sym.id, label: sym.label, count: 0, hex: sym.hex, bg: sym.bg, text: sym.text, icon: sym.icon };
+                    summaryStats[sym.id].count++;
+
+                    if (!activeLegendFilter || activeLegendFilter === sym.id) {
+                        countMapRendered++;
+
+                        const htmlIcon = `<div class="w-7 h-7 md:w-8 md:h-8 rounded-full ${sym.bg} ${sym.text} border-2 border-white flex items-center justify-center shadow-lg hover:scale-125 transition-transform"><i class="fa-solid ${sym.icon} text-[11px] md:text-[13px]"></i></div>`;
+                        const markerIcon = L.divIcon({ html: htmlIcon, className: '', iconSize: L.point(32,32), iconAnchor: [16,16] });
+                        const marker = L.marker([item.lat, item.lng], { icon: markerIcon, customBg: sym.bg, customText: sym.text });
+                        marker.bindPopup(() => createPopupContent(item, sym), { className: 'custom-popup' });
+                        layerTitikDetil.addLayer(marker);
+
+                        aggregateDataHierarchy(grupKab, item.kabupaten, item, sym.bg, sym.text);
+                        aggregateDataHierarchy(grupKec, item.kecamatan, item, sym.bg, sym.text);
+                        aggregateDataHierarchy(grupKel, item.kelurahan, item, sym.bg, sym.text);
+                    }
+                }
+            });
+
+            renderSemanticLayer(layerAdminKab, grupKab, "Kabupaten / Kota");
+            renderSemanticLayer(layerAdminKec, grupKec, "Kecamatan");
+            renderSemanticLayer(layerAdminKel, grupKel, "Kelurahan");
+
+            updateActiveMapLayer();
+
+            document.getElementById('score-total').innerText = activeLegendFilter ? `${countMapRendered} / ${countTotalSearched}` : countTotalSearched;
+            updateScorecardAndChart(Object.values(summaryStats).sort((a,b) => b.count - a.count), countTotalSearched); 
+        }
+
+        function aggregateDataHierarchy(groupObj, rawName, item, bgStr, textStr) {
+            let key = normName(rawName || "Lainnya");
+            if(!groupObj[key]) groupObj[key] = { latSum: 0, lngSum: 0, count: 0, colors: {} };
+            groupObj[key].latSum += parseFloat(item.lat);
+            groupObj[key].lngSum += parseFloat(item.lng);
+            groupObj[key].count++;
+            
+            const colorKey = `${bgStr}|${textStr}`;
+            groupObj[key].colors[colorKey] = (groupObj[key].colors[colorKey] || 0) + 1;
+        }
+
+        function renderSemanticLayer(targetLayerGroup, aggregatedDataObj, levelName) {
+            for (const key in aggregatedDataObj) {
+                const grp = aggregatedDataObj[key];
+                
+                let center = null;
+                if(levelName === "Kabupaten / Kota") center = polyCenters.KAB[key];
+                else if(levelName === "Kecamatan") center = polyCenters.KEC[key];
+                else if(levelName === "Kelurahan") center = polyCenters.KEL[key];
+
+                const finalLat = center ? center.lat : (grp.latSum / grp.count);
+                const finalLng = center ? center.lng : (grp.lngSum / grp.count);
+
+                let domColor = "bg-tjblue|text-white";
+                let max = 0;
+                for (const cKey in grp.colors) {
+                    if (grp.colors[cKey] > max) { max = grp.colors[cKey]; domColor = cKey; }
+                }
+                const [bg, tx] = domColor.split('|');
+
+                const sizeClass = levelName === "Kelurahan" ? "w-11 h-11 md:w-12 md:h-12 text-[10px] md:text-[12px] ring-4 ring-black/10" : 
+                                  (levelName === "Kecamatan" ? "w-13 h-13 md:w-14 md:h-14 text-[12px] md:text-[14px] ring-[6px] ring-black/10 border-4" : 
+                                  "w-15 h-15 md:w-16 md:h-16 text-[14px] md:text-[16px] ring-[8px] ring-black/20 border-4");
+
+                const html = `<div class="${bg} ${tx} font-bold rounded-full ${sizeClass} flex items-center justify-center border-white shadow-2xl transition-transform hover:scale-110"><span>${grp.count}</span></div>`;
+                targetLayerGroup.addLayer(L.marker([finalLat, finalLng], { icon: L.divIcon({ html: html, className: '', iconSize: L.point(60,60), iconAnchor: [30,30] }) }));
+            }
+        }
+
+        // PERBAIKAN RENTANG ZOOM SESUAI INSTRUKSI
+        function updateActiveMapLayer() {
+            const z = map.getZoom();
+            const levelIndicator = document.getElementById('indicator-level');
+
+            map.removeLayer(layerAdminKab); map.removeLayer(layerAdminKec); map.removeLayer(layerAdminKel); map.removeLayer(layerTitikDetil);
+            map.removeLayer(polyLayerKab); map.removeLayer(polyLayerKec); map.removeLayer(polyLayerKel); map.removeLayer(polyLayerLineDesa);
+
+            if (z <= 11) { // 10 dan 11
+                map.addLayer(polyLayerKab); map.addLayer(layerAdminKab);
+                levelIndicator.innerText = "Kabupaten / Kota";
+            } else if (z >= 12 && z <= 13) { // 12 dan 13
+                map.addLayer(polyLayerKec); map.addLayer(layerAdminKec);
+                levelIndicator.innerText = "Kecamatan";
+            } else if (z === 14) { // 14
+                map.addLayer(polyLayerKel); map.addLayer(layerAdminKel);
+                levelIndicator.innerText = "Kelurahan";
+            } else { // 15 ke atas
+                map.addLayer(polyLayerLineDesa); map.addLayer(layerTitikDetil);
+                levelIndicator.innerText = "Mode Titik Detil Individual";
+            }
+        }
+
+        function updateScorecardAndChart(statsArray, totalCount) {
+            const legendDiv = document.getElementById('map-legend');
+            legendDiv.innerHTML = '';
+            let chartLabels = [], chartData = [], chartColors = [];
+
+            statsArray.forEach(stat => {
+                const percentage = totalCount > 0 ? ((stat.count / totalCount) * 100).toFixed(1) + '%' : '0%';
+                const isActive = activeLegendFilter === stat.id;
+                const opacityClass = (activeLegendFilter && !isActive) ? 'opacity-40 grayscale-[30%]' : 'opacity-100 hover:bg-blue-50';
+                const ringClass = isActive ? 'ring-2 ring-tjblue ring-offset-2 bg-blue-50' : 'bg-gray-50';
+
+                legendDiv.innerHTML += `
+                    <div onclick="toggleLegendFilter('${stat.id}')" class="legend-item flex items-center justify-between ${ringClass} ${opacityClass} p-2 md:p-2.5 rounded-lg border border-gray-200 cursor-pointer transition-all duration-200">
+                        <div class="flex items-center">
+                            <div class="w-7 h-7 md:w-8 md:h-8 rounded-full ${stat.bg} ${stat.text} flex justify-center items-center mr-2 md:mr-3 shadow-sm shrink-0">
+                                <i class="fa-solid ${stat.icon} text-xs md:text-sm"></i>
+                            </div>
+                            <span class="text-[10px] md:text-[11px] font-bold text-gray-700 w-32 md:w-44 leading-tight pointer-events-none">${stat.label}</span>
+                        </div>
+                        <div class="text-right pointer-events-none shrink-0">
+                            <span class="text-base md:text-lg font-bold ${stat.text === 'text-white' ? stat.bg.replace('bg-', 'text-') : 'text-gray-900'} leading-none">${stat.count}</span>
+                            <span class="block text-[9px] md:text-[10px] text-gray-400 font-bold mt-0.5">${percentage}</span>
+                        </div>
+                    </div>`;
+                chartLabels.push(stat.label); chartData.push(stat.count); chartColors.push(stat.hex);
+            });
+
+            const canvasWrapper = document.getElementById('chart-panel-content').parentElement;
+            if(window.getComputedStyle(canvasWrapper).display !== 'none') {
+                const ctx = document.getElementById('donutChart').getContext('2d');
+                if (currentChart) currentChart.destroy(); 
+                currentChart = new Chart(ctx, { type: 'doughnut', data: { labels: chartLabels, datasets: [{ data: chartData, backgroundColor: chartColors, borderWidth: 2, borderColor: '#ffffff', hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, layout: { padding: { bottom: 15 } }, cutout: '55%', plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, padding: 10, font: { size: 11, family: 'PT Sans', weight: 'bold' }, color: '#4b5563' } }, tooltip: { bodyFont: { family: 'PT Sans' }, titleFont: { family: 'PT Sans' }, callbacks: { label: function(context) { return ` ${context.label}: ${context.raw} Titik`; } } }, datalabels: { color: '#ffffff', font: { weight: 'bold', size: 12, family: 'PT Sans' }, formatter: (value, ctx) => { let sum = 0; let dataArr = ctx.chart.data.datasets[0].data; dataArr.map(data => { sum += data; }); if(value === 0) return ''; return (value * 100 / sum).toFixed(1) + "%"; } } } } });
+            }
+        }
+
+        function createPopupContent(item, sym) {
+            let fixLink = item.dokumentasi;
+            let btnDokumentasi = `<div class="flex-1 flex justify-center items-center text-[10px] text-gray-400 italic bg-gray-50 border-t border-gray-100 p-2">Foto tak tersedia</div>`;
+            if(fixLink && fixLink.length > 5) { if(!fixLink.startsWith('http://') && !fixLink.startsWith('https://')) fixLink = 'https://' + fixLink; btnDokumentasi = `<a href="${fixLink}" target="_blank" rel="noopener noreferrer" class="flex-1 flex justify-center items-center bg-tjblue hover:bg-blue-800 text-white font-bold py-2.5 md:py-3 text-[10px] md:text-[11px] uppercase tracking-widest transition"><i class="fa-solid fa-camera mr-1.5"></i> Foto</a>`; }
+            const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}`;
+            const btnDirections = `<a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 flex justify-center items-center bg-tjorange hover:bg-yellow-500 text-tjblue font-bold py-2.5 md:py-3 text-[10px] md:text-[11px] uppercase tracking-widest transition border-r border-white/20"><i class="fa-solid fa-route mr-1.5"></i> Navigasi</a>`;
+
+            return `
+                <div class="flex flex-col bg-white rounded-xl font-['PT_Sans']">
+                    <div class="${sym.bg} ${sym.text} px-4 py-3 flex items-center justify-between rounded-t-xl"><div class="pr-2"><h4 class="font-bold text-[13px] md:text-[15px] uppercase tracking-wider mb-1">${item.nama}</h4><span class="inline-block bg-white/20 backdrop-blur-sm text-${sym.text} text-[9px] md:text-[11px] px-2 py-0.5 rounded shadow-sm border border-white/30"><i class="fa-solid fa-route mr-1.5"></i>RUTE: <strong class="font-bold">${item.rute || '-'}</strong></span></div><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/40 shadow-inner"><i class="fa-solid ${sym.icon} text-lg md:text-xl"></i></div></div>
+                    <div class="px-4 py-3 text-[11px] md:text-[12px] text-gray-600 space-y-2 bg-white">
+                        <div class="flex flex-col border-b border-gray-100 pb-1.5"><span class="font-bold text-gray-400 uppercase tracking-wider text-[9px] md:text-[10px]">Administrasi</span><span class="font-bold text-tjblue text-[11px] md:text-[12px]"><i class="fa-solid fa-map-location-dot mr-1.5 opacity-60"></i> ${item.lokasi || `Kel. ${item.kelurahan}, Kec. ${item.kecamatan}, ${item.kabupaten}`}</span></div>
+                        <div class="flex flex-col border-b border-gray-100 pb-1.5"><span class="font-bold text-gray-400 uppercase tracking-wider">Bus Stop (E)</span><span class="font-bold text-gray-800 text-[12px] md:text-[13px]">${item.kondisiE || '-'}</span></div>
+                        <div class="flex flex-col border-b border-gray-100 pb-1.5"><span class="font-bold text-gray-400 uppercase tracking-wider">Papan Rute (F)</span><span class="font-bold text-gray-800 text-[12px] md:text-[13px]">${item.kondisiF || '-'}</span></div>
+                        <div class="flex flex-col"><span class="font-bold text-gray-400 uppercase tracking-wider">Area Tunggu (G)</span><span class="font-bold text-gray-800 text-[12px] md:text-[13px]">${item.kondisiG || '-'}</span></div>
+                    </div>
+                    <div class="px-4 py-2.5 bg-yellow-50/50 border-t border-gray-100"><span class="block text-[10px] font-bold text-gray-500 uppercase mb-1"><i class="fa-solid fa-comment-dots mr-1"></i> Catatan Surveyor</span><p class="text-[11px] md:text-[12px] text-gray-700 leading-relaxed">${item.keterangan || '<span class="italic opacity-50">Tidak ada catatan</span>'}</p></div>
+                    <div class="flex w-full rounded-b-xl overflow-hidden">${btnDirections}${btnDokumentasi}</div>
+                </div>`;
+        }
+    </script>
+</body>
+</html>
