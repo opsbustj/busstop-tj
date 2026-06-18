@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Kondisi Bus Stop</title>
     
-    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
     
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -69,7 +69,6 @@
 
                 <div class="pt-2 border-t border-gray-100 space-y-3">
                     <h4 class="text-[11px] md:text-xs font-bold uppercase tracking-wider text-gray-500"><i class="fa-solid fa-filter mr-1.5 text-tjorange"></i> Filter Wilayah</h4>
-                    
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-[9px] md:text-[10px] font-bold text-tjblue uppercase mb-1">Kab/Kota</label>
@@ -139,17 +138,13 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        const API_URL = "https://script.google.com/macros/s/AKfycbzljx_Q99VtfASZitj576o3DyChbBu6p7t0J9OSnnnpWOx53Q7CUJZgygIo22rVeBHp/exec";
+        const API_URL = "https://script.google.com/macros/s/AKfycbwcE-rC1hubk0ZuYgR9ZjBIKPv7R5lG35YEEl1ajF9Md5-TbXslqgV9SoYMTLCaU5TJ/exec";
 
         let map, allData = [];
         let currentChart = null, activeLegendFilter = null; 
         
-        let boundaryData = {
-            kabupaten: null,
-            kecamatan: null,
-            kelurahan: null,
-            kel_polyline: null
-        };
+        let boundaryData = { kabupaten: null, kecamatan: null, kelurahan: null, kel_polyline: null };
+        let polyCenters = { KAB: {}, KEC: {}, KEL: {} }; // Penampung Centroid Geografis Presisi
 
         let layerAdminKab = L.layerGroup();
         let layerAdminKec = L.layerGroup();
@@ -181,6 +176,15 @@
 
         map.on('zoomend', () => { if(allData.length > 0) updateActiveMapLayer(); });
 
+        // FUNGSI NORMALISASI NAMA (Pembersih String agar Spreadsheet & GeoJSON selalu Match)
+        function normName(str) {
+            return (str || "")
+                .replace(/KOTA ADMINISTRASI\s|KOTA ADM\.\s|KOTA\s|KABUPATEN\s|KAB\.\s/ig, '')
+                .replace(/KECAMATAN\s|KEC\.\s/ig, '')
+                .replace(/KELURAHAN\s|KEL\.\s|DESA\s/ig, '')
+                .trim().toUpperCase();
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             Promise.all([
                 fetch(API_URL).then(res => res.json()),
@@ -197,60 +201,88 @@
                 boundaryData.kelurahan = shpKel;
                 boundaryData.kel_polyline = shpKelGaris; 
 
+                // EKSTRAK TITIK TENGAH POLYGON UNTUK KLASTER PRESISI (Sangat berguna untuk kasus Kab. Bekasi)
+                extractGeoJsonCenters();
+
                 document.getElementById('loading-badge').classList.add('hidden');
                 
                 populateFilterDropdowns(); 
                 processAndRenderLayers(); 
                 setTimeout(() => { map.invalidateSize(); }, 500);
             }).catch(err => { 
-                alert("Gagal memuat. Pastikan file GeoJSON ada di repositori Anda."); 
+                alert("Gagal memuat. Pastikan file GeoJSON ada di repositori Anda dengan nama yang sama persis."); 
                 document.getElementById('loading-badge').classList.add('hidden');
                 console.error(err);
             });
         });
 
+        function extractGeoJsonCenters() {
+            // Kita gunakan Leaflet pembantu untuk mendapatkan Bounds dari tiap Polygon
+            const tempLayer = L.geoJSON(null);
+            
+            boundaryData.kabupaten.features.forEach(f => {
+                tempLayer.addData(f);
+                const center = tempLayer.getBounds().getCenter();
+                polyCenters.KAB[normName(f.properties.WADMKK || f.properties.NAMOBJ)] = center;
+                tempLayer.clearLayers();
+            });
+            boundaryData.kecamatan.features.forEach(f => {
+                tempLayer.addData(f);
+                const center = tempLayer.getBounds().getCenter();
+                polyCenters.KEC[normName(f.properties.WADMKC || f.properties.NAMOBJ)] = center;
+                tempLayer.clearLayers();
+            });
+            boundaryData.kelurahan.features.forEach(f => {
+                tempLayer.addData(f);
+                const center = tempLayer.getBounds().getCenter();
+                polyCenters.KEL[normName(f.properties.WADMKD || f.properties.NAMOBJ)] = center;
+                tempLayer.clearLayers();
+            });
+        }
+
+        // FILTER DROPDOWN: Diambil langsung dari Spreadsheet (allData) agar 100% sinkron
         function populateFilterDropdowns() {
             const kabupatenSel = document.getElementById('filter-kab');
             const kabupatenSet = new Set();
-            boundaryData.kabupaten.features.forEach(f => {
-                const nama = (f.properties.WADMKK || "").replace(/KOTA\s|KABUPATEN\s/ig, '').trim();
-                if(nama) kabupatenSet.add(nama);
+            allData.forEach(item => {
+                const name = normName(item.kabupaten);
+                if(name && name !== "TANPA KABUPATEN") kabupatenSet.add(name);
             });
-            kabupatenSet.forEach(kab => { kabupatenSel.add(new Option(kab, kab.toUpperCase())); });
+            [...kabupatenSet].sort().forEach(kab => { kabupatenSel.add(new Option(kab, kab)); });
         }
 
         function updateDistrictFilter() {
-            const kabupatenSel = document.getElementById('filter-kab').value;
-            const kecamatanSel = document.getElementById('filter-kec');
-            const kelurahanSel = document.getElementById('filter-kel');
+            const kabVal = document.getElementById('filter-kab').value;
+            const kecSel = document.getElementById('filter-kec');
+            const kelSel = document.getElementById('filter-kel');
 
-            kecamatanSel.innerHTML = '<option value="ALL">Semua</option>';
-            kelurahanSel.innerHTML = '<option value="ALL">Semua</option>';
-            if (kabupatenSel === 'ALL') { processAndRenderLayers(); return; }
+            kecSel.innerHTML = '<option value="ALL">Semua</option>';
+            kelSel.innerHTML = '<option value="ALL">Semua</option>';
+            if (kabVal === 'ALL') { processAndRenderLayers(); return; }
 
-            const kecamatanSet = new Set();
-            boundaryData.kecamatan.features.forEach(f => {
-                const fKab = (f.properties.WADMKK || "").replace(/KOTA\s|KABUPATEN\s/ig, '').trim().toUpperCase();
-                if(fKab === kabupatenSel && f.properties.WADMKC) {
-                    kecamatanSet.add(f.properties.WADMKC);
+            const kecSet = new Set();
+            allData.forEach(item => {
+                if(normName(item.kabupaten) === kabVal && item.kecamatan && item.kecamatan !== "Tanpa Kecamatan") {
+                    kecSet.add(normName(item.kecamatan));
                 }
             });
-            kecamatanSet.forEach(kec => { kecamatanSel.add(new Option(kec, kec.toUpperCase())); });
+            [...kecSet].sort().forEach(kec => { kecSel.add(new Option(kec, kec)); });
             processAndRenderLayers();
         }
 
         function updateKelurahanFilter() {
-            const kecamatanSel = document.getElementById('filter-kec').value;
-            const kelurahanSel = document.getElementById('filter-kel');
-            kelurahanSel.innerHTML = '<option value="ALL">Semua</option>';
-            if (kecamatanSel === 'ALL') { processAndRenderLayers(); return; }
+            const kecVal = document.getElementById('filter-kec').value;
+            const kelSel = document.getElementById('filter-kel');
+            kelSel.innerHTML = '<option value="ALL">Semua</option>';
+            if (kecVal === 'ALL') { processAndRenderLayers(); return; }
 
-            boundaryData.kelurahan.features.forEach(f => {
-                const fKec = (f.properties.WADMKC || "").trim().toUpperCase();
-                if(fKec === kecamatanSel && f.properties.WADMKD) {
-                    kelurahanSel.add(new Option(f.properties.WADMKD, f.properties.WADMKD.toUpperCase()));
+            const kelSet = new Set();
+            allData.forEach(item => {
+                if(normName(item.kecamatan) === kecVal && item.kelurahan && item.kelurahan !== "Tanpa Kelurahan") {
+                    kelSet.add(normName(item.kelurahan));
                 }
             });
+            [...kelSet].sort().forEach(kel => { kelSel.add(new Option(kel, kel)); });
             processAndRenderLayers();
         }
 
@@ -305,10 +337,13 @@
                 const matchS = !searchVal || item.nama.toLowerCase().includes(searchVal);
                 const matchR = !routeVal || (item.rute && item.rute.toLowerCase().includes(routeVal)); 
                 
-                const fItemKab = (item.kabupaten || "").replace(/KOTA\s|KABUPATEN\s/ig, '').trim().toUpperCase();
+                const fItemKab = normName(item.kabupaten);
+                const fItemKec = normName(item.kecamatan);
+                const fItemKel = normName(item.kelurahan);
+
                 const matchKab = kabupatenVal === 'ALL' || fItemKab === kabupatenVal;
-                const matchKec = kecamatanVal === 'ALL' || (item.kecamatan || "").trim().toUpperCase() === kecamatanVal;
-                const matchKel = kelurahanVal === 'ALL' || (item.kelurahan || "").trim().toUpperCase() === kelurahanVal;
+                const matchKec = kecamatanVal === 'ALL' || fItemKec === kecamatanVal;
+                const matchKel = kelurahanVal === 'ALL' || fItemKel === kelurahanVal;
 
                 if (matchS && matchR && matchKab && matchKec && matchKel) {
                     countTotalSearched++;
@@ -324,6 +359,7 @@
                     if (!activeLegendFilter || activeLegendFilter === sym.id) {
                         countMapRendered++;
 
+                        // Titik Detil (Zoom >= 15)
                         const htmlIcon = `<div class="w-7 h-7 md:w-8 md:h-8 rounded-full ${sym.bg} ${sym.text} border-2 border-white flex items-center justify-center shadow-lg hover:scale-125 transition-transform"><i class="fa-solid ${sym.icon} text-[11px] md:text-[13px]"></i></div>`;
                         const markerIcon = L.divIcon({ html: htmlIcon, className: '', iconSize: L.point(32,32), iconAnchor: [16,16] });
                         const marker = L.marker([item.lat, item.lng], { icon: markerIcon });
@@ -347,8 +383,8 @@
             updateScorecardAndChart(Object.values(summaryStats).sort((a,b) => b.count - a.count), countTotalSearched); 
         }
 
-        function aggregateDataHierarchy(groupObj, keyName, item, bgStr, textStr) {
-            let key = (keyName || "Lainnya").toUpperCase();
+        function aggregateDataHierarchy(groupObj, rawName, item, bgStr, textStr) {
+            let key = normName(rawName || "Lainnya");
             if(!groupObj[key]) groupObj[key] = { latSum: 0, lngSum: 0, count: 0, colors: {} };
             groupObj[key].latSum += parseFloat(item.lat);
             groupObj[key].lngSum += parseFloat(item.lng);
@@ -359,20 +395,30 @@
         }
 
         function renderSemanticLayer(targetLayerGroup, aggregatedDataObj, polygonGeojsonObj, levelName) {
+            // 1. Tambahkan GeoJSON Overlay (dengan Tooltip Hover agar tidak berantakan)
             L.geoJSON(polygonGeojsonObj, {
                 style: function() { return { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }; },
                 onEachFeature: function(feature, layer) {
                     const nama = feature.properties.WADMKD || feature.properties.WADMKC || feature.properties.WADMKK || "Wilayah";
-                    layer.bindTooltip(`<div class="text-[9px] md:text-[10px] font-bold text-tjblue opacity-80 uppercase tracking-widest">${nama}</div>`, { 
-                        permanent: true, direction: 'center', className: 'bg-transparent border-none shadow-none text-tjblue' 
-                    }).openTooltip();
+                    // Tooltip sekarang hanya muncul saat kursor diarahkan (hover) dan mengikuti gerak kursor (sticky)
+                    layer.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${nama}</div>`, { 
+                        permanent: false, sticky: true, direction: 'auto', className: 'bg-transparent border-none shadow-none' 
+                    });
                 }
             }).addTo(targetLayerGroup);
 
+            // 2. Tambahkan Marker Klaster (Memanfaatkan presisi Geometric Center)
             for (const key in aggregatedDataObj) {
                 const grp = aggregatedDataObj[key];
-                const avgLat = grp.latSum / grp.count;
-                const avgLng = grp.lngSum / grp.count;
+                
+                // Cek apakah polygon memiliki titik tengah presisi, jika tidak gunakan rata-rata
+                let center = null;
+                if(levelName === "Kabupaten / Kota") center = polyCenters.KAB[key];
+                else if(levelName === "Kecamatan") center = polyCenters.KEC[key];
+                else if(levelName === "Kelurahan") center = polyCenters.KEL[key];
+
+                const finalLat = center ? center.lat : (grp.latSum / grp.count);
+                const finalLng = center ? center.lng : (grp.lngSum / grp.count);
 
                 let domColor = "bg-tjblue|text-white";
                 let max = 0;
@@ -386,7 +432,7 @@
                                   "w-15 h-15 md:w-16 md:h-16 text-[14px] md:text-[16px] ring-[8px] ring-black/20 border-4");
 
                 const html = `<div class="${bg} ${tx} font-bold rounded-full ${sizeClass} flex items-center justify-center border-white shadow-2xl transition-transform hover:scale-110"><span>${grp.count}</span></div>`;
-                targetLayerGroup.addLayer(L.marker([avgLat, avgLng], { icon: L.divIcon({ html: html, className: '', iconSize: L.point(60,60), iconAnchor: [30,30] }) }));
+                targetLayerGroup.addLayer(L.marker([finalLat, finalLng], { icon: L.divIcon({ html: html, className: '', iconSize: L.point(60,60), iconAnchor: [30,30] }) }));
             }
         }
 
@@ -399,19 +445,21 @@
             map.removeLayer(layerAdminKel);
             map.removeLayer(layerTitikDetil);
 
+            // Pergeseran Batas Zoom sesuai instruksi baru
             if (z < 11) {
                 map.addLayer(layerAdminKab);
                 levelIndicator.innerText = "Kabupaten / Kota";
-            } else if (z >= 11 && z < 13) {
+            } else if (z >= 11 && z <= 13) { // Zoom 13 masih masuk Kecamatan
                 map.addLayer(layerAdminKec);
                 levelIndicator.innerText = "Kecamatan";
-            } else if (z >= 13 && z < 15) {
+            } else if (z === 14) {
                 map.addLayer(layerAdminKel);
                 levelIndicator.innerText = "Kelurahan";
             } else {
                 map.addLayer(layerTitikDetil);
+                // Menambahkan Polyline Garis Desa tanpa Label dan tanpa Fill (Fill: False) di Zoom >= 15
                 L.geoJSON(boundaryData.kel_polyline, {
-                    style: { color: "#06367c", weight: 1, opacity: 0.6, dashArray: '4, 4' } 
+                    style: { color: "#06367c", weight: 1.5, opacity: 0.5, dashArray: '5, 5', fill: false } 
                 }).addTo(layerTitikDetil); 
                 levelIndicator.innerText = "Mode Titik Detil Individual";
             }
