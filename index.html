@@ -446,10 +446,10 @@
             map.removeLayer(layerTitikDetil);
 
             // Pergeseran Batas Zoom sesuai instruksi baru
-            if (z < 11) {
+            if (z < 12) {
                 map.addLayer(layerAdminKab);
                 levelIndicator.innerText = "Kabupaten / Kota";
-            } else if (z >= 11 && z <= 13) { // Zoom 13 masih masuk Kecamatan
+            } else if (z >= 12 && z <= 13) { // Zoom 13 masih masuk Kecamatan
                 map.addLayer(layerAdminKec);
                 levelIndicator.innerText = "Kecamatan";
             } else if (z === 14) {
