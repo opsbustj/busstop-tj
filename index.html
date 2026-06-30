@@ -144,7 +144,7 @@
     </div>
 
     <script>
-        const API_URL = "https://script.google.com/macros/s/AKfycbwAD4YTgVlPdQppFyoyjB_DBsgMq6iLmkQ8gK2YraHaXKxsofp80iBfxF1AEctSz9tP/exec";
+        const API_URL = "https://script.google.com/macros/s/AKfycbzljx_Q99VtfASZitj576o3DyChbBu6p7t0J9OSnnnpWOx53Q7CUJZgygIo22rVeBHp/exec";
 
         let map, allData = [];
         let currentChart = null, activeLegendFilter = null; 
@@ -322,11 +322,10 @@
             else if (mode === 'G') text = (item.kondisiG || "").toLowerCase();
 
             if (mode === 'E' || mode === 'F' || mode === 'G') {
-                if (text.includes("tidak ada") && mode !== 'G') return { id: "e1", label: "Tidak Ada", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-exclamation" };
+                if (text.includes("tidak ada") && mode !== 'G') return { id: "e1", label: "Tidak Ada / Tidak Tersedia", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-exclamation" };
                 if (mode === 'G' && text.includes("berbahaya")) return { id: "g1", label: "Berbahaya Untuk Berhenti", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-bus-simple" }; 
-                if (text.includes("terhalang") || text.includes("penerangan") || text.includes("kriminalitas")) return { id: "e2", label: "Butuh Penerangan, Rawan Kriminalitas", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-ban" };
-                if (text.includes("rusak") || return { id: "e3", label: "Rusak", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-wrench" };
-                if (text.includes("bocor") || text.includes("pinggir")) return { id: "e3", label: "Perlu Halte Pinggir/Petugas Karena Bocor Pelanggan", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-wrench" };
+                if (text.includes("terhalang") || text.includes("penerangan") || text.includes("kriminalitas")) return { id: "e2", label: "Rawan / Terhalang", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-ban" };
+                if (text.includes("rusak") || text.includes("bocor") || text.includes("pinggir")) return { id: "e3", label: "Rusak / Perlu Perhatian", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-wrench" };
                 if (text.includes("baik") || text.includes("ada") || text.includes("aman")) return { id: "e4", label: "Kondisi Baik / Aman", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
             }
             return { id: "unk", label: "Data Tidak Spesifik", bg: "bg-gray-300", text: "text-gray-700", hex: "#d1d5db", icon: "fa-circle-question" };
