@@ -32,8 +32,12 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .legend-item { transition: all 0.2s ease-in-out; }
         .legend-item:hover { transform: translateX(5px); }
+        .leaflet-control-layers { border-radius: 8px !important; border: 2px solid #e2e8f0 !important; font-family: 'PT Sans', sans-serif; font-weight: bold; background-color: rgba(255,255,255,0.95) !important; backdrop-filter: blur(4px); }
         
-        /* CSS Widget Layer Custom di Kanan Bawah */
+        input:checked ~ .dot { transform: translateX(100%); }
+        input:checked ~ .block-bg { background-color: #ef4444; }
+
+        /* Widget Layer Custom di Kanan Bawah */
         .custom-layer-control {
             background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
             padding: 12px 15px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);
@@ -45,17 +49,6 @@
         .layer-toggle:hover { color: #F2A900; }
         .layer-toggle.off { color: #94a3b8; }
         .layer-label { flex-grow: 1; margin-left: 10px; font-weight: bold; font-size: 12px; color: #334155; }
-        
-        /* Magic CSS untuk Diagram Pie Klaster */
-        .pie-cluster {
-            border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: 3px solid white; transition: transform 0.2s;
-        }
-        .pie-cluster:hover { transform: scale(1.15); z-index: 1000; }
-        .pie-inner {
-            background-color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            font-weight: bold; color: #06367c;
-        }
     </style>
 </head>
 <body class="flex flex-col h-screen overflow-hidden">
@@ -158,29 +151,27 @@
         let globalAvgDemand = 0; 
         
         let boundaryData = { kabupaten: null, kecamatan: null, kelurahan: null };
+        let polyCenters = { KAB: {}, KEC: {}, KEL: {} }; 
         
-        let heatLayer = null; 
+        // Heatmap diinisiasi di awal (kosong) agar tidak error saat diklik
+        let heatLayer = L.heatLayer([], {radius: 20, blur: 15, maxZoom: 15, gradient: {0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red'}});
         let isBusStopVisible = true;
         let isHeatmapVisible = false;
 
         let polyLayerKab = L.layerGroup(); let polyLayerKec = L.layerGroup(); let polyLayerKel = L.layerGroup(); let polyLayerLineDesa = L.layerGroup(); 
         
-        // Peta Warna untuk Render Gradient Pie Chart
         const colorHexMap = {
             'bg-red-500': '#ef4444', 'bg-red-600': '#dc2626', 'bg-orange-500': '#f97316',
             'bg-yellow-400': '#facc15', 'bg-green-500': '#22c55e', 'bg-purple-500': '#a855f7', 'bg-gray-300': '#d1d5db'
         };
 
-        // FUNGSI PEMBUAT DIAGRAM PIE CSS
-        function buildPieChartHTML(colorsCountObj, totalCount, outerSizeCls, innerSizeCls, fontSize) {
-            let gradientStr = "";
-            let currentPercentage = 0;
-            
-            // Urutkan dari yang terbesar agar proporsinya rapi
+        // FUNGSI DIAGRAM PIE TANPA LINGKARAN PUTIH TENGAH (FULL BUBBLE + STROKE TEKS)
+        function buildPieChartHTML(colorsCountObj, totalCount, sizeCls, fontSize) {
+            let gradientStr = ""; let currentPercentage = 0;
             let sortedColors = Object.entries(colorsCountObj).sort((a, b) => b[1] - a[1]);
             
             sortedColors.forEach(([bgClass, count], index) => {
-                let hexColor = colorHexMap[bgClass] || '#06367c'; // Default fallback
+                let hexColor = colorHexMap[bgClass] || '#06367c'; 
                 let pct = (count / totalCount) * 100;
                 gradientStr += `${hexColor} ${currentPercentage}% ${currentPercentage + pct}%`;
                 if (index < sortedColors.length - 1) gradientStr += ", ";
@@ -188,10 +179,9 @@
             });
 
             return `
-                <div class="pie-cluster ${outerSizeCls}" style="background: conic-gradient(${gradientStr});">
-                    <div class="pie-inner ${innerSizeCls} shadow-inner" style="font-size: ${fontSize};">
-                        ${totalCount}
-                    </div>
+                <div class="${sizeCls} rounded-full shadow-2xl border-[3px] border-white flex items-center justify-center transition-transform hover:scale-110 z-[1000]" 
+                     style="background: conic-gradient(${gradientStr}); color: white; font-size: ${fontSize}; font-weight: 900; -webkit-text-stroke: 1.5px #1e293b; text-shadow: 0px 2px 4px rgba(0,0,0,0.8);">
+                    ${totalCount}
                 </div>`;
         }
 
@@ -207,7 +197,7 @@
                     counts[bg] = (counts[bg] || 0) + 1;
                 });
                 return L.divIcon({ 
-                    html: buildPieChartHTML(counts, cluster.getChildCount(), 'w-10 h-10', 'w-8 h-8', '11px'), 
+                    html: buildPieChartHTML(counts, cluster.getChildCount(), 'w-10 h-10', '11px'), 
                     className: '', iconSize: L.point(40, 40) 
                 });
             }
@@ -224,16 +214,12 @@
         map = L.map('map', { maxZoom: 18, minZoom: 10, maxBounds: jabodetabekBounds, maxBoundsViscosity: 1.0, zoomControl: false, layers: [cartoLight] }).setView([-6.2088, 106.8456], 12);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-        // =====================================================================
-        // CUSTOM WIDGET LAYER CONTROL (Menggantikan bawaan Leaflet)
-        // =====================================================================
+        // CUSTOM WIDGET LAYER (Dropdown Basemap & Mata)
         let currentBasemap = cartoLight;
-        
         L.Control.CustomLayers = L.Control.extend({
             onAdd: function(map) {
                 let div = L.DomUtil.create('div', 'custom-layer-control leaflet-control');
-                L.DomEvent.disableClickPropagation(div);
-                L.DomEvent.disableScrollPropagation(div);
+                L.DomEvent.disableClickPropagation(div); L.DomEvent.disableScrollPropagation(div);
 
                 div.innerHTML = `
                     <div class="layer-row">
@@ -264,23 +250,20 @@
             const icon = document.getElementById('toggle-busstop');
             if (isBusStopVisible) {
                 icon.className = "fa-solid fa-eye layer-toggle";
-                updateActiveMapLayer(); // Nyalakan ulang sesuai zoom
+                updateActiveMapLayer(); 
             } else {
                 icon.className = "fa-solid fa-eye-slash layer-toggle off";
-                // Matikan semua layer terkait bus stop
                 map.removeLayer(layerAdminKab); map.removeLayer(layerAdminKec); map.removeLayer(layerAdminKel); map.removeLayer(layerTitikDetil);
                 map.removeLayer(polyLayerKab); map.removeLayer(polyLayerKec); map.removeLayer(polyLayerKel); map.removeLayer(polyLayerLineDesa);
             }
         };
 
         window.toggleHeatmapLayer = function() {
-            if(!heatLayer) { alert("Data Heatmap sedang dimuat..."); return; }
             isHeatmapVisible = !isHeatmapVisible;
             const icon = document.getElementById('toggle-heatmap');
             if (isHeatmapVisible) {
                 icon.className = "fa-solid fa-eye layer-toggle text-red-500";
                 map.addLayer(heatLayer);
-                // Pindahkan heatmap ke belakang agar titik bus stop tidak tertutup
                 if(heatLayer._canvas) heatLayer._canvas.style.zIndex = "300"; 
             } else {
                 icon.className = "fa-solid fa-eye-slash layer-toggle off";
@@ -313,6 +296,12 @@
             return s.replace(/KECAMATAN\s|KEC\.\s/ig, '').replace(/KELURAHAN\s|KEL\.\s|DESA\s/ig, '').trim();
         }
 
+        // FUNGSI CEK HYBRID CENTROID
+        function isDKI(name) {
+            let n = (name || "").toUpperCase();
+            return n.includes("JAKARTA") || n.includes("KEPULAUAN SERIBU");
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             fetch(API_URL).then(res => { if (!res.ok) throw new Error("API Google Script menolak."); return res.json(); })
                 .then(data => {
@@ -335,24 +324,28 @@
             const shpKel = await pullFile('Jakarta_Desa.geojson'); const shpKelGaris = await pullFile('Jakarta_Desa_Line.geojson');
             const lakaData = await pullFile('laka_pasif.geojson');
 
+            const tempLayer = L.geoJSON(null);
             if(shpKab) {
                 boundaryData.kabupaten = shpKab;
+                shpKab.features.forEach(f => { tempLayer.addData(f); polyCenters.KAB[normName(f.properties.WADMKK || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
                 L.geoJSON(shpKab, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKK || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKab);
             }
             if(shpKec) {
                 boundaryData.kecamatan = shpKec;
+                shpKec.features.forEach(f => { tempLayer.addData(f); polyCenters.KEC[normName(f.properties.WADMKC || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
                 L.geoJSON(shpKec, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKC || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKec);
             }
             if(shpKel) {
                 boundaryData.kelurahan = shpKel;
+                shpKel.features.forEach(f => { tempLayer.addData(f); polyCenters.KEL[normName(f.properties.WADMKD || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
                 L.geoJSON(shpKel, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKD || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKel);
             }
             if(shpKelGaris) L.geoJSON(shpKelGaris, { style: { color: "#06367c", weight: 1.5, opacity: 0.5, dashArray: '5, 5', fill: false } }).addTo(polyLayerLineDesa);
 
-            if(lakaData) {
+            if(lakaData && lakaData.features) {
                 let hPts = [];
                 lakaData.features.forEach(f => { if(f.geometry && f.geometry.coordinates) hPts.push([f.geometry.coordinates[1], f.geometry.coordinates[0], 1]); });
-                heatLayer = L.heatLayer(hPts, {radius: 20, blur: 15, maxZoom: 15, gradient: {0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red'}});
+                heatLayer.setLatLngs(hPts); // Data disuntikkan tanpa mengunci layer
             }
             processAndRenderLayers();
         }
@@ -434,12 +427,10 @@
                         const htmlIcon = `<div class="w-7 h-7 md:w-8 md:h-8 rounded-full ${sym.bg} ${sym.text} border-2 border-white flex items-center justify-center shadow-lg hover:scale-125 transition-transform"><i class="fa-solid ${sym.icon} text-[11px] md:text-[13px]"></i></div>`;
                         const markerIcon = L.divIcon({ html: htmlIcon, className: '', iconSize: L.point(32,32), iconAnchor: [16,16] });
                         
-                        // Pass bg to marker option so MarkerCluster can read it for Pie Chart
                         const marker = L.marker([item.lat, item.lng], { icon: markerIcon, customBg: sym.bg, customText: sym.text });
                         marker.bindPopup(() => createPopupContent(item, sym), { className: 'custom-popup', itemData: item });
                         layerTitikDetil.addLayer(marker);
 
-                        // Agregasi Data-Driven Centroid
                         aggregateDataHierarchy(grupKab, item.kabupaten, item, sym.bg, sym.text);
                         aggregateDataHierarchy(grupKec, item.kecamatan, item, sym.bg, sym.text);
                         aggregateDataHierarchy(grupKel, item.kelurahan, item, sym.bg, sym.text);
@@ -447,9 +438,9 @@
                 }
             });
 
-            renderSemanticLayer(layerAdminKab, grupKab, "w-16 h-16 md:w-20 md:h-20", "w-12 h-12 md:w-16 md:h-16", "text-lg md:text-2xl"); 
-            renderSemanticLayer(layerAdminKec, grupKec, "w-14 h-14 md:w-16 md:h-16", "w-10 h-10 md:w-12 md:h-12", "text-base md:text-xl"); 
-            renderSemanticLayer(layerAdminKel, grupKel, "w-10 h-10 md:w-12 md:h-12", "w-7 h-7 md:w-9 md:h-9", "text-xs md:text-base");
+            renderSemanticLayer(layerAdminKab, grupKab, "w-14 h-14 md:w-16 md:h-16", "18px"); 
+            renderSemanticLayer(layerAdminKec, grupKec, "w-12 h-12 md:w-14 md:h-14", "15px"); 
+            renderSemanticLayer(layerAdminKel, grupKel, "w-10 h-10 md:w-12 md:h-12", "12px");
             
             if(isBusStopVisible) updateActiveMapLayer();
             
@@ -457,25 +448,39 @@
             updateScorecardAndChart(Object.values(summaryStats).sort((a,b) => b.count - a.count), countTotalSearched); 
         }
 
-        // MENGHITUNG RATA-RATA LOKASI HALTE (DATA-DRIVEN CENTROID)
         function aggregateDataHierarchy(groupObj, rawName, item, bgStr, textStr) {
             let key = normName(rawName || "Lainnya");
             if(!groupObj[key]) groupObj[key] = { latSum: 0, lngSum: 0, count: 0, colors: {} };
             groupObj[key].latSum += parseFloat(item.lat); groupObj[key].lngSum += parseFloat(item.lng); groupObj[key].count++;
-            const colorKey = bgStr; // Simpan class background (cth: bg-red-500)
+            const colorKey = bgStr; 
             groupObj[key].colors[colorKey] = (groupObj[key].colors[colorKey] || 0) + 1;
         }
 
-        // RENDER KLASTER SEBAGAI PIE CHART
-        function renderSemanticLayer(targetLayerGroup, aggregatedDataObj, outerCls, innerCls, fontCls) {
+        // PENERAPAN HYBRID CENTROID
+        function renderSemanticLayer(targetLayerGroup, aggregatedDataObj, sizeCls, fontCls) {
             for (const key in aggregatedDataObj) {
                 const grp = aggregatedDataObj[key];
-                // Titik Peta Berdasarkan Rata-Rata Data Halte (Fix Bogor/Satelit City Out-of-bounds)
-                const finalLat = grp.latSum / grp.count; 
-                const finalLng = grp.lngSum / grp.count;
+                
+                let finalLat, finalLng;
+                
+                // Jika DKI Jakarta = Taruh klaster di tengah batas Polygon
+                if(isDKI(key)) {
+                    let center = null;
+                    if(targetLayerGroup === layerAdminKab) center = polyCenters.KAB[key];
+                    else if(targetLayerGroup === layerAdminKec) center = polyCenters.KEC[key];
+                    else if(targetLayerGroup === layerAdminKel) center = polyCenters.KEL[key];
+                    
+                    finalLat = center ? center.lat : (grp.latSum / grp.count);
+                    finalLng = center ? center.lng : (grp.lngSum / grp.count);
+                } 
+                // Jika Bodetabek = Taruh klaster di tengah keramaian halte (Data-driven)
+                else {
+                    finalLat = grp.latSum / grp.count;
+                    finalLng = grp.lngSum / grp.count;
+                }
 
-                const html = buildPieChartHTML(grp.colors, grp.count, outerCls, innerCls, fontCls);
-                targetLayerGroup.addLayer(L.marker([finalLat, finalLng], { icon: L.divIcon({ html: html, className: '', iconSize: L.point(80,80), iconAnchor: [40,40] }) }));
+                const html = buildPieChartHTML(grp.colors, grp.count, sizeCls, fontCls);
+                targetLayerGroup.addLayer(L.marker([finalLat, finalLng], { icon: L.divIcon({ html: html, className: '', iconSize: L.point(60,60), iconAnchor: [30,30] }) }));
             }
         }
 
@@ -569,6 +574,7 @@
                         <div class="flex flex-col border-b border-gray-100 pb-1.5"><span class="font-bold text-gray-400 uppercase tracking-wider">Papan Rute (F)</span><span class="font-bold text-gray-800 text-[12px] md:text-[13px]">${item.kondisiF || '-'}</span></div>
                         <div class="flex flex-col"><span class="font-bold text-gray-400 uppercase tracking-wider">Area Tunggu (G)</span><span class="font-bold text-gray-800 text-[12px] md:text-[13px]">${item.kondisiG || '-'}</span></div>
                     </div>
+                    <div class="px-4 py-2.5 bg-yellow-50/50 border-t border-gray-100"><span class="block text-[10px] font-bold text-gray-500 uppercase mb-1"><i class="fa-solid fa-comment-dots mr-1"></i> Catatan Surveyor</span><p class="text-[11px] md:text-[12px] text-gray-700 leading-relaxed">${item.keterangan || '<span class="italic opacity-50">Tidak ada catatan</span>'}</p></div>
                     <div class="flex w-full rounded-b-xl overflow-hidden">${btnDirections}${btnDokumentasi}</div>
                 </div>`;
         }
