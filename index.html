@@ -6,7 +6,6 @@
     <title>Dashboard Kondisi Bus Stop</title>
     
     <link rel="icon" type="image/x-icon" href="favicon.ico">
-    
     <script src="https://cdn.tailwindcss.com"></script>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -14,6 +13,7 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
@@ -21,23 +21,22 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     
-    <script>
-        tailwind.config = { theme: { extend: { colors: { tjblue: '#06367c', tjorange: '#F2A900' } } } }
-    </script>
+    <script>tailwind.config = { theme: { extend: { colors: { tjblue: '#06367c', tjorange: '#F2A900' } } } }</script>
     <style>
         html, body { height: 100%; margin: 0; background-color: #f8fafc; font-family: 'PT Sans', sans-serif; }
         #map { height: 100%; width: 100%; z-index: 10; }
-        
-        .custom-popup .leaflet-popup-content-wrapper { padding: 0; overflow: hidden; border-radius: 12px; border: none; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
-        .custom-popup .leaflet-popup-content { margin: 0; width: 280px !important; }
+        .custom-popup .leaflet-popup-content-wrapper { padding: 0; overflow: hidden; border-radius: 12px; border: none; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+        .custom-popup .leaflet-popup-content { margin: 0; width: 300px !important; }
         @media (min-width: 768px) { .custom-popup .leaflet-popup-content { width: 340px !important; } }
-
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        
         .legend-item { transition: all 0.2s ease-in-out; }
         .legend-item:hover { transform: translateX(5px); }
         .leaflet-control-layers { border-radius: 8px !important; border: 2px solid #e2e8f0 !important; font-family: 'PT Sans', sans-serif; font-weight: bold; background-color: rgba(255,255,255,0.95) !important; backdrop-filter: blur(4px); }
+        
+        /* CSS Untuk Toggle Button */
+        input:checked ~ .dot { transform: translateX(100%); }
+        input:checked ~ .block-bg { background-color: #ef4444; }
     </style>
 </head>
 <body class="flex flex-col h-screen overflow-hidden">
@@ -52,7 +51,7 @@
             </div>
         </div>
         <div id="loading-badge" class="px-2 md:px-5 py-1 md:py-2 text-[9px] md:text-xs bg-tjorange text-tjblue font-bold rounded-full animate-pulse shadow-md flex items-center shrink-0">
-            <i class="fa-solid fa-satellite-dish mr-1 md:mr-2 animate-spin"></i> <span class="hidden md:inline">Memuat Data...</span><span class="inline md:hidden">Sync...</span>
+            <i class="fa-solid fa-satellite-dish mr-1 md:mr-2 animate-spin"></i> <span class="hidden md:inline">Mensinkronisasi Data...</span><span class="inline md:hidden">Sync...</span>
         </div>
     </header>
 
@@ -76,35 +75,44 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-[9px] md:text-[10px] font-bold text-tjblue uppercase mb-1">Kab/Kota</label>
-                            <select id="filter-kab" onchange="updateDistrictFilter()" class="w-full text-[11px] px-3 py-2 border border-gray-200 rounded focus:border-tjblue focus:ring-1 focus:ring-blue-100 outline-none transition cursor-pointer">
-                                <option value="ALL">Semua</option>
-                            </select>
+                            <select id="filter-kab" onchange="updateDistrictFilter()" class="w-full text-[11px] px-3 py-2 border border-gray-200 rounded focus:border-tjblue focus:ring-1 focus:ring-blue-100 outline-none transition cursor-pointer"><option value="ALL">Semua</option></select>
                         </div>
                         <div>
                             <label class="block text-[9px] md:text-[10px] font-bold text-tjblue uppercase mb-1">Kecamatan</label>
-                            <select id="filter-kec" onchange="updateKelurahanFilter()" class="w-full text-[11px] px-3 py-2 border border-gray-200 rounded focus:border-tjblue focus:ring-1 focus:ring-blue-100 outline-none transition cursor-pointer">
-                                <option value="ALL">Semua</option>
-                            </select>
+                            <select id="filter-kec" onchange="updateKelurahanFilter()" class="w-full text-[11px] px-3 py-2 border border-gray-200 rounded focus:border-tjblue focus:ring-1 focus:ring-blue-100 outline-none transition cursor-pointer"><option value="ALL">Semua</option></select>
                         </div>
                     </div>
                     <div>
                         <label class="block text-[9px] md:text-[10px] font-bold text-tjblue uppercase mb-1">Kelurahan</label>
-                        <select id="filter-kel" onchange="processAndRenderLayers()" class="w-full text-[11px] px-3 py-2 border border-gray-200 rounded focus:border-tjblue focus:ring-1 focus:ring-blue-100 outline-none transition cursor-pointer">
-                            <option value="ALL">Semua</option>
-                        </select>
+                        <select id="filter-kel" onchange="processAndRenderLayers()" class="w-full text-[11px] px-3 py-2 border border-gray-200 rounded focus:border-tjblue focus:ring-1 focus:ring-blue-100 outline-none transition cursor-pointer"><option value="ALL">Semua</option></select>
                     </div>
                 </div>
 
                 <div class="pt-2 border-t border-gray-100 space-y-2">
                     <label class="block text-[11px] md:text-xs font-bold uppercase tracking-wider text-gray-500"><i class="fa-solid fa-layer-group mr-1.5 text-tjblue"></i> Lihat Persebaran Dari:</label>
-                    <select id="view-mode" onchange="resetLegendAndFilter()" class="w-full text-sm px-4 py-2.5 border-2 border-gray-200 rounded-lg text-gray-800 font-bold focus:border-tjorange focus:ring-0 outline-none cursor-pointer shadow-sm transition">
+                    <select id="view-mode" onchange="resetLegendAndFilter()" class="w-full text-sm px-4 py-2.5 border-2 border-gray-200 rounded-lg text-gray-800 font-bold focus:border-tjorange focus:ring-0 outline-none cursor-pointer shadow-sm transition bg-blue-50">
                         <option value="E">Ketersediaan Bus Stop</option>
                         <option value="F">Ketersediaan Papan Informasi Rute</option>
                         <option value="G">Kondisi Tempat Tunggu Pelanggan</option>
+                        <option value="PRIORITAS" class="font-bold text-red-600">🔥 Matriks Prioritas Intervensi</option>
                     </select>
                 </div>
 
-                <div class="pt-1 md:pt-2">
+                <div class="pt-3 border-t border-gray-100 flex items-center justify-between">
+                    <div class="flex items-center">
+                        <i class="fa-solid fa-fire-flame-curved text-red-500 mr-2 text-lg"></i>
+                        <span class="text-[11px] md:text-xs font-bold uppercase tracking-wider text-gray-700">Heatmap Laka Pasif</span>
+                    </div>
+                    <label class="flex items-center cursor-pointer">
+                        <div class="relative">
+                            <input type="checkbox" id="toggle-laka" class="sr-only" onchange="toggleHeatmap()">
+                            <div class="block-bg block bg-gray-300 w-10 h-6 rounded-full transition-colors shadow-inner"></div>
+                            <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform shadow-md"></div>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="pt-2 md:pt-4">
                     <div class="flex justify-between items-end mb-3 border-b border-gray-200 pb-2">
                         <h3 class="text-[11px] md:text-xs font-bold text-gray-500 uppercase"><i class="fa-solid fa-list-check mr-1"></i> Keterangan</h3>
                         <span class="text-[10px] md:text-[11px] font-bold text-tjblue bg-blue-50 px-2.5 py-1 rounded">Total: <span id="score-total">0</span> Titik</span>
@@ -117,12 +125,10 @@
         </aside>
 
         <main class="w-full h-[45vh] md:h-full md:flex-1 relative bg-gray-100 order-1 md:order-2 shrink-0 md:shrink z-10 flex flex-col min-w-[30%]">
-            
             <div id="hierarchy-indicator" class="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-tjblue text-white px-4 py-1.5 rounded-full shadow-lg text-[10px] md:text-xs font-bold flex items-center border border-blue-400 opacity-90 transition-opacity">
                 <i class="fa-solid fa-magnifying-glass-location mr-2 text-tjorange animate-pulse"></i>
-                Klaster: <span id="indicator-level" class="ml-1 font-extrabold uppercase">Memuat Peta...</span>
+                Klaster: <span id="indicator-level" class="ml-1 font-extrabold uppercase">Memuat...</span>
             </div>
-
             <div id="map" class="flex-1 w-full h-full"></div>
             
             <div class="hidden md:block absolute top-5 right-5 z-[1000]">
@@ -140,36 +146,27 @@
     </div>
 
     <script>
-        const API_URL = "https://script.google.com/macros/s/AKfycbzljx_Q99VtfASZitj576o3DyChbBu6p7t0J9OSnnnpWOx53Q7CUJZgygIo22rVeBHp/exec";
+        // GANTI URL INI JIKA ANDA MELAKUKAN DEPLOY BARU
+        const API_URL = "https://script.google.com/macros/s/AKfycbwAD4YTgVlPdQppFyoyjB_DBsgMq6iLmkQ8gK2YraHaXKxsofp80iBfxF1AEctSz9tP/exec";
 
         let map, allData = [];
         let currentChart = null, activeLegendFilter = null; 
+        let globalAvgDemand = 0; // Untuk Matriks Prioritas
         
         let boundaryData = { kabupaten: null, kecamatan: null, kelurahan: null };
         let polyCenters = { KAB: {}, KEC: {}, KEL: {} }; 
-
-        let polyLayerKab = L.layerGroup();
-        let polyLayerKec = L.layerGroup();
-        let polyLayerKel = L.layerGroup();
-        let polyLayerLineDesa = L.layerGroup(); 
-
-        let layerAdminKab = L.layerGroup();
-        let layerAdminKec = L.layerGroup();
-        let layerAdminKel = L.layerGroup();
         
-        // KONFIGURASI RADIUS 4 PIKSEL ANTI-LAG KLASTER INDIVIDUAL
+        let heatLayer = null; // Menyimpan layer heatmap laka
+
+        let polyLayerKab = L.layerGroup(); let polyLayerKec = L.layerGroup(); let polyLayerKel = L.layerGroup(); let polyLayerLineDesa = L.layerGroup(); 
+        let layerAdminKab = L.layerGroup(); let layerAdminKec = L.layerGroup(); let layerAdminKel = L.layerGroup();
+        
         let layerTitikDetil = L.markerClusterGroup({
-            chunkedLoading: true, 
-            maxClusterRadius: 4, 
-            disableClusteringAtZoom: 18, 
+            chunkedLoading: true, maxClusterRadius: 4, disableClusteringAtZoom: 18, 
             iconCreateFunction: function(cluster) {
                 const markers = cluster.getAllChildMarkers();
-                const bg = markers[0].options.customBg || "bg-tjblue";
-                const text = markers[0].options.customText || "text-white";
-                return L.divIcon({ 
-                    html: `<div class="${bg} ${text} font-bold rounded-full w-8 h-8 flex items-center justify-center border-2 border-white shadow-xl text-[11px] ring-2 ring-black/10">${cluster.getChildCount()}</div>`, 
-                    className: '', iconSize: L.point(32, 32) 
-                });
+                const bg = markers[0].options.customBg || "bg-tjblue"; const text = markers[0].options.customText || "text-white";
+                return L.divIcon({ html: `<div class="${bg} ${text} font-bold rounded-full w-8 h-8 flex items-center justify-center border-2 border-white shadow-xl text-[11px] ring-2 ring-black/10">${cluster.getChildCount()}</div>`, className: '', iconSize: L.point(32, 32) });
             }
         });
 
@@ -181,12 +178,7 @@
         const googleSat = L.tileLayer('http://mt0.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}', { attribution: '© Google Satellite' });
 
         const jabodetabekBounds = L.latLngBounds(L.latLng(-6.8, 106.5), L.latLng(-5.9, 107.2));
-
-        map = L.map('map', { 
-            maxZoom: 18, minZoom: 10, maxBounds: jabodetabekBounds, maxBoundsViscosity: 1.0, 
-            zoomControl: false, layers: [cartoLight]
-        }).setView([-6.2088, 106.8456], 12);
-        
+        map = L.map('map', { maxZoom: 18, minZoom: 10, maxBounds: jabodetabekBounds, maxBoundsViscosity: 1.0, zoomControl: false, layers: [cartoLight] }).setView([-6.2088, 106.8456], 12);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
         L.control.layers({ "Carto Light": cartoLight, "Carto Dark": cartoDark, "Google Maps": googleStreets, "Google Satelit": googleSat }, null, { position: 'bottomleft' }).addTo(map);
 
@@ -198,219 +190,138 @@
 
         map.on('zoomend', () => { if(allData.length > 0) updateActiveMapLayer(); });
 
-        // NORMALISASI NAMA (SMART ISOLATION)
         function normName(str) {
             let s = (str || "").toUpperCase();
-            if (s.includes("JAKARTA")) {
-                s = s.replace(/KOTA ADMINISTRASI\s|KOTA ADM\.\s|KOTA\s/ig, '');
-            }
+            if (s.includes("JAKARTA")) s = s.replace(/KOTA ADMINISTRASI\s|KOTA ADM\.\s|KOTA\s/ig, '');
             return s.replace(/KECAMATAN\s|KEC\.\s/ig, '').replace(/KELURAHAN\s|KEL\.\s|DESA\s/ig, '').trim();
         }
 
-        // =========================================================================
-        // FUNGSI GET SYMBOLOGY YANG HILANG (KEMBALI DILESTARIKAN)
-        // =========================================================================
-        function getSymbology(text, mode) {
-            text = (text || "").toLowerCase();
-            if (mode === 'E') {
-                if (text.includes("tidak ada")) return { id: "e1", label: "Tidak Ada Bus Stop", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-exclamation" };
-                if (text.includes("terhalang")) return { id: "e2", label: "Ada, Namun Terhalang", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-ban" };
-                if (text.includes("rusak")) return { id: "e3", label: "Ada, Kondisi Rusak", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-wrench" };
-                if (text.includes("baik") || text.includes("ada")) return { id: "e4", label: "Ada, Kondisi Baik", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
-            } else if (mode === 'F') {
-                if (text.includes("rusak") || text.includes("vandalisme")) return { id: "f1", label: "Ada, Rusak / Vandalisme", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-wrench" };
-                if (text.includes("tidak ada")) return { id: "f2", label: "Tidak Ada Informasi", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-triangle-exclamation" };
-                if (text.includes("baik") || text.includes("ada")) return { id: "f3", label: "Ada, Kondisi Baik", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
-            } else if (mode === 'G') {
-                if (text.includes("berbahaya")) return { id: "g1", label: "Berbahaya Untuk Berhenti", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-bus-simple" }; 
-                if (text.includes("kriminalitas") || text.includes("penerangan")) return { id: "g2", label: "Potensi Kriminalitas", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-user-secret" }; 
-                if (text.includes("bocor") || text.includes("pinggir")) return { id: "g3", label: "Perlu Halte & Petugas", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-id-card" }; 
-                if (text.includes("aman") || text.includes("mudah")) return { id: "g4", label: "Aman & Ramah Pelanggan", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
-            }
-            return { id: "unk", label: "Data Tidak Spesifik", bg: "bg-gray-300", text: "text-gray-700", hex: "#d1d5db", icon: "fa-circle-question" };
-        }
-
-        // =========================================================================
-        // METODE LAZY LOAD SPREADSHEET DULU, BARU GEOJSON (TANPA PROMISE.ALL)
-        // =========================================================================
         window.addEventListener('DOMContentLoaded', () => {
-            fetch(API_URL)
-                .then(res => {
-                    if (!res.ok) throw new Error("API Google Script menolak koneksi.");
-                    return res.json();
-                })
+            fetch(API_URL).then(res => { if (!res.ok) throw new Error("API Google Script menolak."); return res.json(); })
                 .then(data => {
                     if(data.error) { alert("Error database: " + data.error); return; }
                     allData = data;
+                    
+                    // Hitung Rata-rata Pelanggan Global se-Jakarta
+                    let totalD = 0, countD = 0;
+                    allData.forEach(d => { if(d.avg_pelanggan > 0) { totalD += d.avg_pelanggan; countD++; } });
+                    globalAvgDemand = countD > 0 ? (totalD / countD) : 0;
 
                     document.getElementById('loading-badge').classList.add('hidden');
                     populateFilterDropdowns(); 
-                    
-                    // Unduh GeoJSON di background
                     loadGeoJsonLayersLazy();
-                })
-                .catch(err => {
-                    alert("GAGAL MENSINKRONKAN DATA:\n" + err.message);
-                    document.getElementById('loading-badge').classList.add('hidden');
-                });
+                }).catch(err => { alert("GAGAL MENSINKRONKAN DATA:\n" + err.message); document.getElementById('loading-badge').classList.add('hidden'); });
         });
 
         async function loadGeoJsonLayersLazy() {
-            async function pullFile(name) {
-                try { const res = await fetch(name); return res.ok ? await res.json() : null; } 
-                catch(e) { console.warn(`Geometri ${name} belum siap.`); return null; }
-            }
-
-            const shpKab = await pullFile('Jakarta_Kabupaten_Kota.geojson');
-            const shpKec = await pullFile('Jakarta_Kecamatan.geojson');
-            const shpKel = await pullFile('Jakarta_Desa.geojson');
-            const shpKelGaris = await pullFile('Jakarta_Desa_Line.geojson');
+            async function pullFile(name) { try { const res = await fetch(name); return res.ok ? await res.json() : null; } catch(e) { return null; } }
+            const shpKab = await pullFile('Jakarta_Kabupaten_Kota.geojson'); const shpKec = await pullFile('Jakarta_Kecamatan.geojson');
+            const shpKel = await pullFile('Jakarta_Desa.geojson'); const shpKelGaris = await pullFile('Jakarta_Desa_Line.geojson');
+            const lakaData = await pullFile('laka_pasif.geojson'); // Load Heatmap Data
 
             const tempLayer = L.geoJSON(null);
-            
             if(shpKab) {
                 boundaryData.kabupaten = shpKab;
-                shpKab.features.forEach(f => {
-                    tempLayer.addData(f);
-                    polyCenters.KAB[normName(f.properties.WADMKK || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter();
-                    tempLayer.clearLayers();
-                });
-                L.geoJSON(shpKab, {
-                    style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 },
-                    onEachFeature: function(f, l) {
-                        const nama = f.properties.WADMKK || f.properties.NAMOBJ || "Wilayah";
-                        l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${nama}</div>`, { permanent: false, sticky: true });
-                    }
-                }).addTo(polyLayerKab);
+                shpKab.features.forEach(f => { tempLayer.addData(f); polyCenters.KAB[normName(f.properties.WADMKK || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
+                L.geoJSON(shpKab, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKK || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKab);
             }
-
             if(shpKec) {
                 boundaryData.kecamatan = shpKec;
-                shpKec.features.forEach(f => {
-                    tempLayer.addData(f);
-                    polyCenters.KEC[normName(f.properties.WADMKC || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter();
-                    tempLayer.clearLayers();
-                });
-                L.geoJSON(shpKec, {
-                    style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 },
-                    onEachFeature: function(f, l) {
-                        const nama = f.properties.WADMKC || f.properties.NAMOBJ || "Wilayah";
-                        l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${nama}</div>`, { permanent: false, sticky: true });
-                    }
-                }).addTo(polyLayerKec);
+                shpKec.features.forEach(f => { tempLayer.addData(f); polyCenters.KEC[normName(f.properties.WADMKC || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
+                L.geoJSON(shpKec, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKC || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKec);
             }
-
             if(shpKel) {
                 boundaryData.kelurahan = shpKel;
-                shpKel.features.forEach(f => {
-                    tempLayer.addData(f);
-                    polyCenters.KEL[normName(f.properties.WADMKD || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter();
-                    tempLayer.clearLayers();
-                });
-                L.geoJSON(shpKel, {
-                    style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 },
-                    onEachFeature: function(f, l) {
-                        const nama = f.properties.WADMKD || f.properties.NAMOBJ || "Wilayah";
-                        l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${nama}</div>`, { permanent: false, sticky: true });
-                    }
-                }).addTo(polyLayerKel);
+                shpKel.features.forEach(f => { tempLayer.addData(f); polyCenters.KEL[normName(f.properties.WADMKD || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
+                L.geoJSON(shpKel, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKD || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKel);
             }
+            if(shpKelGaris) L.geoJSON(shpKelGaris, { style: { color: "#06367c", weight: 1.5, opacity: 0.5, dashArray: '5, 5', fill: false } }).addTo(polyLayerLineDesa);
 
-            if(shpKelGaris) {
-                L.geoJSON(shpKelGaris, { style: { color: "#06367c", weight: 1.5, opacity: 0.5, dashArray: '5, 5', fill: false } }).addTo(polyLayerLineDesa);
+            // Eksekusi Data Laka ke Heatmap
+            if(lakaData) {
+                let hPts = [];
+                lakaData.features.forEach(f => { if(f.geometry && f.geometry.coordinates) hPts.push([f.geometry.coordinates[1], f.geometry.coordinates[0], 1]); });
+                heatLayer = L.heatLayer(hPts, {radius: 20, blur: 15, maxZoom: 15, gradient: {0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red'}});
             }
-
-            // Segarkan layer aktif agar klaster presisi langsung bekerja
             processAndRenderLayers();
         }
 
-        // =========================================================================
-        // DROPDOWN CASCADING (100% Mengambil Teks Asli Spreadsheet)
-        // =========================================================================
+        function toggleHeatmap() {
+            const cb = document.getElementById('toggle-laka');
+            if(cb.checked && heatLayer) map.addLayer(heatLayer);
+            else if(heatLayer) map.removeLayer(heatLayer);
+        }
+
         function populateFilterDropdowns() {
-            const kabupatenSel = document.getElementById('filter-kab');
-            kabupatenSel.innerHTML = '<option value="ALL">Semua</option>';
-            
-            const kabupatenSet = new Set();
-            allData.forEach(item => {
-                if(item.kabupaten) kabupatenSet.add(item.kabupaten.trim());
-            });
-            [...kabupatenSet].sort().forEach(kab => { kabupatenSel.add(new Option(kab, kab)); });
-            updateDistrictFilter();
+            const kabupatenSel = document.getElementById('filter-kab'); kabupatenSel.innerHTML = '<option value="ALL">Semua</option>';
+            const kabupatenSet = new Set(); allData.forEach(item => { if(item.kabupaten) kabupatenSet.add(item.kabupaten.trim()); });
+            [...kabupatenSet].sort().forEach(kab => { kabupatenSel.add(new Option(kab, kab)); }); updateDistrictFilter();
         }
-
         function updateDistrictFilter() {
-            const kabVal = document.getElementById('filter-kab').value;
-            const kecSel = document.getElementById('filter-kec');
-            kecSel.innerHTML = '<option value="ALL">Semua</option>';
-
-            const kecSet = new Set();
-            allData.forEach(item => {
-                const matchKab = kabVal === 'ALL' || (item.kabupaten && item.kabupaten.trim() === kabVal);
-                if(matchKab && item.kecamatan) {
-                    const name = item.kecamatan.trim();
-                    if(name && name !== "Tanpa Kecamatan") kecSet.add(name);
-                }
-            });
-            [...kecSet].sort().forEach(kec => { kecSel.add(new Option(kec, kec)); });
-            updateKelurahanFilter();
+            const kabVal = document.getElementById('filter-kab').value, kecSel = document.getElementById('filter-kec'); kecSel.innerHTML = '<option value="ALL">Semua</option>';
+            const kecSet = new Set(); allData.forEach(item => { if((kabVal === 'ALL' || (item.kabupaten && item.kabupaten.trim() === kabVal)) && item.kecamatan) { const name = item.kecamatan.trim(); if(name && name !== "Tanpa Kecamatan") kecSet.add(name); } });
+            [...kecSet].sort().forEach(kec => { kecSel.add(new Option(kec, kec)); }); updateKelurahanFilter();
         }
-
         function updateKelurahanFilter() {
-            const kabVal = document.getElementById('filter-kab').value;
-            const kecVal = document.getElementById('filter-kec').value;
-            const kelSel = document.getElementById('filter-kel');
-            kelSel.innerHTML = '<option value="ALL">Semua</option>';
-
-            const kelSet = new Set();
-            allData.forEach(item => {
-                const matchKab = kabVal === 'ALL' || (item.kabupaten && item.kabupaten.trim() === kabVal);
-                const matchKec = kecVal === 'ALL' || (item.kecamatan && item.kecamatan.trim() === kecVal);
-                if(matchKab && matchKec && item.kelurahan) {
-                    const name = item.kelurahan.trim();
-                    if(name && name !== "Tanpa Kelurahan") kelSet.add(name);
-                }
-            });
-            [...kelSet].sort().forEach(kel => { kelSel.add(new Option(kel, kel)); });
-            processAndRenderLayers();
+            const kabVal = document.getElementById('filter-kab').value, kecVal = document.getElementById('filter-kec').value, kelSel = document.getElementById('filter-kel'); kelSel.innerHTML = '<option value="ALL">Semua</option>';
+            const kelSet = new Set(); allData.forEach(item => { if((kabVal === 'ALL' || (item.kabupaten && item.kabupaten.trim() === kabVal)) && (kecVal === 'ALL' || (item.kecamatan && item.kecamatan.trim() === kecVal)) && item.kelurahan) { const name = item.kelurahan.trim(); if(name && name !== "Tanpa Kelurahan") kelSet.add(name); } });
+            [...kelSet].sort().forEach(kel => { kelSel.add(new Option(kel, kel)); }); processAndRenderLayers();
         }
 
         function toggleLegendFilter(id) { activeLegendFilter = (activeLegendFilter === id) ? null : id; processAndRenderLayers(); }
         function resetLegendAndFilter() { activeLegendFilter = null; processAndRenderLayers(); }
-
         function toggleSidebar() { sidebar.style.display = sidebar.style.display === 'none' ? 'flex' : 'none'; if(sidebar.style.display==='flex') sidebar.style.width = ''; setTimeout(() => { map.invalidateSize(); }, 50); }
         function toggleChart() { const p = document.getElementById('chart-panel-content'), b = document.getElementById('show-chart-btn'); p.classList.toggle('hidden'); b.classList.toggle('hidden'); }
         window.addEventListener('resize', () => { if(map) map.invalidateSize(); });
 
+        // FUNGSI SYMBOLOGY DIPERBARUI DENGAN MATRIKS PRIORITAS
+        function getSymbology(item, mode) {
+            if (mode === 'PRIORITAS') {
+                let supply = (item.kondisiE || "").toLowerCase();
+                let isBuruk = supply.includes("tidak ada") || supply.includes("rusak") || supply.includes("terhalang");
+                let isTinggi = item.avg_pelanggan >= globalAvgDemand;
+                if (isBuruk && isTinggi) return { id: "p1", label: "Prioritas Kritis (Fasilitas Buruk, Penumpang Ramai)", bg: "bg-red-600", text: "text-white", hex: "#dc2626", icon: "fa-triangle-exclamation" };
+                if (isBuruk && !isTinggi) return { id: "p2", label: "Prioritas Kedua (Fasilitas Buruk, Penumpang Sepi)", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-wrench" };
+                if (!isBuruk && isTinggi) return { id: "p3", label: "Kondisi Ideal (Fasilitas Baik, Penumpang Ramai)", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check-double" };
+                if (!isBuruk && !isTinggi) return { id: "p4", label: "Underutilized (Fasilitas Baik, Penumpang Sepi)", bg: "bg-purple-500", text: "text-white", hex: "#a855f7", icon: "fa-arrow-trend-down" };
+            }
+
+            let text = "";
+            if (mode === 'E') text = (item.kondisiE || "").toLowerCase();
+            else if (mode === 'F') text = (item.kondisiF || "").toLowerCase();
+            else if (mode === 'G') text = (item.kondisiG || "").toLowerCase();
+
+            if (mode === 'E' || mode === 'F' || mode === 'G') {
+                if (text.includes("tidak ada") && mode !== 'G') return { id: "e1", label: "Tidak Ada / Tidak Tersedia", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-exclamation" };
+                if (mode === 'G' && text.includes("berbahaya")) return { id: "g1", label: "Berbahaya Untuk Berhenti", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-bus-simple" }; 
+                if (text.includes("terhalang") || text.includes("penerangan") || text.includes("kriminalitas")) return { id: "e2", label: "Rawan / Terhalang", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-ban" };
+                if (text.includes("rusak") || text.includes("bocor") || text.includes("pinggir")) return { id: "e3", label: "Rusak / Perlu Perhatian", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-wrench" };
+                if (text.includes("baik") || text.includes("ada") || text.includes("aman")) return { id: "e4", label: "Kondisi Baik / Aman", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
+            }
+            return { id: "unk", label: "Data Tidak Spesifik", bg: "bg-gray-300", text: "text-gray-700", hex: "#d1d5db", icon: "fa-circle-question" };
+        }
+
         function processAndRenderLayers() {
-            const searchVal = document.getElementById('search-input').value.toLowerCase();
-            const routeVal = document.getElementById('route-input').value.toLowerCase(); 
-            const kabupatenVal = document.getElementById('filter-kab').value;
-            const kecamatanVal = document.getElementById('filter-kec').value;
-            const kelurahanVal = document.getElementById('filter-kel').value;
+            const searchVal = document.getElementById('search-input').value.toLowerCase(), routeVal = document.getElementById('route-input').value.toLowerCase(); 
+            const kabVal = document.getElementById('filter-kab').value, kecVal = document.getElementById('filter-kec').value, kelVal = document.getElementById('filter-kel').value;
             const viewMode = document.getElementById('view-mode').value;
             
-            layerAdminKab.clearLayers(); layerAdminKec.clearLayers(); layerAdminKel.clearLayers(); layerTitikDetil.clearLayers(); 
+            const modeNames = { 'E': 'Ketersediaan Bus Stop', 'F': 'Papan Informasi Rute', 'G': 'Kondisi Tempat Tunggu', 'PRIORITAS': 'Matriks Prioritas Intervensi' };
+            document.getElementById('chart-subtitle').innerText = "Berdasarkan " + modeNames[viewMode];
 
-            let countTotalSearched = 0, countMapRendered = 0; 
-            let summaryStats = {};
-            let grupKab = {}, grupKec = {}, grupKel = {};
+            layerAdminKab.clearLayers(); layerAdminKec.clearLayers(); layerAdminKel.clearLayers(); layerTitikDetil.clearLayers(); 
+            let countTotalSearched = 0, countMapRendered = 0, summaryStats = {}, grupKab = {}, grupKec = {}, grupKel = {};
 
             allData.forEach(item => {
                 const matchS = !searchVal || item.nama.toLowerCase().includes(searchVal);
                 const matchR = !routeVal || (item.rute && item.rute.toLowerCase().includes(routeVal)); 
-                
-                const matchKab = kabupatenVal === 'ALL' || (item.kabupaten && item.kabupaten.trim() === kabupatenVal);
-                const matchKec = kecamatanVal === 'ALL' || (item.kecamatan && item.kecamatan.trim() === kecamatanVal);
-                const matchKel = kelurahanVal === 'ALL' || (item.kelurahan && item.kelurahan.trim() === kelurahanVal);
+                const matchKab = kabVal === 'ALL' || (item.kabupaten && item.kabupaten.trim() === kabVal);
+                const matchKec = kecVal === 'ALL' || (item.kecamatan && item.kecamatan.trim() === kecVal);
+                const matchKel = kelVal === 'ALL' || (item.kelurahan && item.kelurahan.trim() === kelVal);
 
                 if (matchS && matchR && matchKab && matchKec && matchKel) {
                     countTotalSearched++;
-                    let valToEvaluate = item.kondisiE;
-                    if(viewMode === 'F') valToEvaluate = item.kondisiF;
-                    if(viewMode === 'G') valToEvaluate = item.kondisiG;
-                    
-                    const sym = getSymbology(valToEvaluate, viewMode);
+                    const sym = getSymbology(item, viewMode);
                     if(!summaryStats[sym.id]) summaryStats[sym.id] = { id: sym.id, label: sym.label, count: 0, hex: sym.hex, bg: sym.bg, text: sym.text, icon: sym.icon };
                     summaryStats[sym.id].count++;
 
@@ -419,7 +330,8 @@
                         const htmlIcon = `<div class="w-7 h-7 md:w-8 md:h-8 rounded-full ${sym.bg} ${sym.text} border-2 border-white flex items-center justify-center shadow-lg hover:scale-125 transition-transform"><i class="fa-solid ${sym.icon} text-[11px] md:text-[13px]"></i></div>`;
                         const markerIcon = L.divIcon({ html: htmlIcon, className: '', iconSize: L.point(32,32), iconAnchor: [16,16] });
                         const marker = L.marker([item.lat, item.lng], { icon: markerIcon, customBg: sym.bg, customText: sym.text });
-                        marker.bindPopup(() => createPopupContent(item, sym), { className: 'custom-popup' });
+                        // Lempar data komplit ke popup
+                        marker.bindPopup(() => createPopupContent(item, sym), { className: 'custom-popup', itemData: item });
                         layerTitikDetil.addLayer(marker);
 
                         aggregateDataHierarchy(grupKab, item.kabupaten, item, sym.bg, sym.text);
@@ -429,10 +341,7 @@
                 }
             });
 
-            renderSemanticLayer(layerAdminKab, grupKab, "Kabupaten / Kota");
-            renderSemanticLayer(layerAdminKec, grupKec, "Kecamatan");
-            renderSemanticLayer(layerAdminKel, grupKel, "Kelurahan");
-
+            renderSemanticLayer(layerAdminKab, grupKab, "Kabupaten / Kota"); renderSemanticLayer(layerAdminKec, grupKec, "Kecamatan"); renderSemanticLayer(layerAdminKel, grupKel, "Kelurahan");
             updateActiveMapLayer();
             document.getElementById('score-total').innerText = activeLegendFilter ? `${countMapRendered} / ${countTotalSearched}` : countTotalSearched;
             updateScorecardAndChart(Object.values(summaryStats).sort((a,b) => b.count - a.count), countTotalSearched); 
@@ -441,80 +350,54 @@
         function aggregateDataHierarchy(groupObj, rawName, item, bgStr, textStr) {
             let key = normName(rawName || "Lainnya");
             if(!groupObj[key]) groupObj[key] = { latSum: 0, lngSum: 0, count: 0, colors: {} };
-            groupObj[key].latSum += parseFloat(item.lat);
-            groupObj[key].lngSum += parseFloat(item.lng);
-            groupObj[key].count++;
-            const colorKey = `${bgStr}|${textStr}`;
-            groupObj[key].colors[colorKey] = (groupObj[key].colors[colorKey] || 0) + 1;
+            groupObj[key].latSum += parseFloat(item.lat); groupObj[key].lngSum += parseFloat(item.lng); groupObj[key].count++;
+            const colorKey = `${bgStr}|${textStr}`; groupObj[key].colors[colorKey] = (groupObj[key].colors[colorKey] || 0) + 1;
         }
 
         function renderSemanticLayer(targetLayerGroup, aggregatedDataObj, levelName) {
             for (const key in aggregatedDataObj) {
                 const grp = aggregatedDataObj[key];
                 let center = null;
-                if(levelName === "Kabupaten / Kota") center = polyCenters.KAB[key];
-                else if(levelName === "Kecamatan") center = polyCenters.KEC[key];
-                else if(levelName === "Kelurahan") center = polyCenters.KEL[key];
-
-                const finalLat = center ? center.lat : (grp.latSum / grp.count);
-                const finalLng = center ? center.lng : (grp.lngSum / grp.count);
+                if(levelName === "Kabupaten / Kota") center = polyCenters.KAB[key]; else if(levelName === "Kecamatan") center = polyCenters.KEC[key]; else if(levelName === "Kelurahan") center = polyCenters.KEL[key];
+                const finalLat = center ? center.lat : (grp.latSum / grp.count); const finalLng = center ? center.lng : (grp.lngSum / grp.count);
 
                 let domColor = "bg-tjblue|text-white"; let max = 0;
                 for (const cKey in grp.colors) { if (grp.colors[cKey] > max) { max = grp.colors[cKey]; domColor = cKey; } }
                 const [bg, tx] = domColor.split('|');
 
-                const sizeClass = levelName === "Kelurahan" ? "w-11 h-11 md:w-12 md:h-12 text-[10px] md:text-[12px] ring-4 ring-black/10" : 
-                                  (levelName === "Kecamatan" ? "w-13 h-13 md:w-14 md:h-14 text-[12px] md:text-[14px] ring-[6px] ring-black/10 border-4" : 
-                                  "w-15 h-15 md:w-16 md:h-16 text-[14px] md:text-[16px] ring-[8px] ring-black/20 border-4");
-
+                const sizeClass = levelName === "Kelurahan" ? "w-11 h-11 text-[10px] ring-4 ring-black/10" : (levelName === "Kecamatan" ? "w-13 h-13 text-[12px] ring-[6px] border-4" : "w-15 h-15 text-[14px] ring-[8px] border-4");
                 const html = `<div class="${bg} ${tx} font-bold rounded-full ${sizeClass} flex items-center justify-center border-white shadow-2xl transition-transform hover:scale-110"><span>${grp.count}</span></div>`;
                 targetLayerGroup.addLayer(L.marker([finalLat, finalLng], { icon: L.divIcon({ html: html, className: '', iconSize: L.point(60,60), iconAnchor: [30,30] }) }));
             }
         }
 
         function updateActiveMapLayer() {
-            const z = map.getZoom();
-            const levelIndicator = document.getElementById('indicator-level');
-
+            const z = map.getZoom(), levelIndicator = document.getElementById('indicator-level');
             map.removeLayer(layerAdminKab); map.removeLayer(layerAdminKec); map.removeLayer(layerAdminKel); map.removeLayer(layerTitikDetil);
             map.removeLayer(polyLayerKab); map.removeLayer(polyLayerKec); map.removeLayer(polyLayerKel); map.removeLayer(polyLayerLineDesa);
 
-            if (z <= 11) { // Zoom 10 - 11 Kabupaten Kota
-                map.addLayer(polyLayerKab); map.addLayer(layerAdminKab);
-                levelIndicator.innerText = "Kabupaten / Kota";
-            } else if (z >= 12 && z <= 13) { // Zoom 12 - 13 Kecamatan
-                map.addLayer(polyLayerKec); map.addLayer(layerAdminKec);
-                levelIndicator.innerText = "Kecamatan";
-            } else if (z === 14) { // Zoom 14 Kelurahan
-                map.addLayer(polyLayerKel); map.addLayer(layerAdminKel);
-                levelIndicator.innerText = "Kelurahan";
-            } else { // Zoom 15 ke atas Individual Points
-                map.addLayer(polyLayerLineDesa); map.addLayer(layerTitikDetil);
-                levelIndicator.innerText = "Mode Titik Detil Individual";
-            }
+            if (z <= 11) { map.addLayer(polyLayerKab); map.addLayer(layerAdminKab); levelIndicator.innerText = "Kabupaten / Kota"; } 
+            else if (z >= 12 && z <= 13) { map.addLayer(polyLayerKec); map.addLayer(layerAdminKec); levelIndicator.innerText = "Kecamatan"; } 
+            else if (z === 14) { map.addLayer(polyLayerKel); map.addLayer(layerAdminKel); levelIndicator.innerText = "Kelurahan"; } 
+            else { map.addLayer(polyLayerLineDesa); map.addLayer(layerTitikDetil); levelIndicator.innerText = "Mode Titik Detil Individual"; }
         }
 
         function updateScorecardAndChart(statsArray, totalCount) {
-            const legendDiv = document.getElementById('map-legend');
-            legendDiv.innerHTML = '';
+            const legendDiv = document.getElementById('map-legend'); legendDiv.innerHTML = '';
             let chartLabels = [], chartData = [], chartColors = [];
 
             statsArray.forEach(stat => {
                 const percentage = totalCount > 0 ? ((stat.count / totalCount) * 100).toFixed(1) + '%' : '0%';
                 const isActive = activeLegendFilter === stat.id;
-                const opacityClass = (activeLegendFilter && !isActive) ? 'opacity-40 grayscale-[30%]' : 'opacity-100 hover:bg-blue-50';
                 const ringClass = isActive ? 'ring-2 ring-tjblue ring-offset-2 bg-blue-50' : 'bg-gray-50';
 
                 legendDiv.innerHTML += `
-                    <div onclick="toggleLegendFilter('${stat.id}')" class="legend-item flex items-center justify-between ${ringClass} ${opacityClass} p-2 md:p-2.5 rounded-lg border border-gray-200 cursor-pointer transition-all duration-200">
+                    <div onclick="toggleLegendFilter('${stat.id}')" class="legend-item flex items-center justify-between ${ringClass} ${!isActive && activeLegendFilter ? 'opacity-40 grayscale' : ''} p-2 rounded-lg border border-gray-200 cursor-pointer transition-all duration-200">
                         <div class="flex items-center">
-                            <div class="w-7 h-7 md:w-8 md:h-8 rounded-full ${stat.bg} ${stat.text} flex justify-center items-center mr-2 md:mr-3 shadow-sm shrink-0"><i class="fa-solid ${stat.icon} text-xs md:text-sm"></i></div>
-                            <span class="text-[10px] md:text-[11px] font-bold text-gray-700 w-32 md:w-44 leading-tight pointer-events-none">${stat.label}</span>
+                            <div class="w-7 h-7 rounded-full ${stat.bg} ${stat.text} flex justify-center items-center mr-2 shadow-sm shrink-0"><i class="fa-solid ${stat.icon} text-xs"></i></div>
+                            <span class="text-[10px] font-bold text-gray-700 w-32 leading-tight pointer-events-none">${stat.label}</span>
                         </div>
-                        <div class="text-right pointer-events-none shrink-0">
-                            <span class="text-base md:text-lg font-bold ${stat.text === 'text-white' ? stat.bg.replace('bg-', 'text-') : 'text-gray-900'} leading-none">${stat.count}</span>
-                            <span class="block text-[9px] md:text-[10px] text-gray-400 font-bold mt-0.5">${percentage}</span>
-                        </div>
+                        <div class="text-right pointer-events-none shrink-0"><span class="text-base font-bold ${stat.text === 'text-white' ? stat.bg.replace('bg-', 'text-') : 'text-gray-900'} leading-none">${stat.count}</span><span class="block text-[9px] text-gray-400 font-bold mt-0.5">${percentage}</span></div>
                     </div>`;
                 chartLabels.push(stat.label); chartData.push(stat.count); chartColors.push(stat.hex);
             });
@@ -523,9 +406,39 @@
             if(window.getComputedStyle(canvasWrapper).display !== 'none') {
                 const ctx = document.getElementById('donutChart').getContext('2d');
                 if (currentChart) currentChart.destroy(); 
-                currentChart = new Chart(ctx, { type: 'doughnut', data: { labels: chartLabels, datasets: [{ data: chartData, backgroundColor: chartColors, borderWidth: 2, borderColor: '#ffffff', hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '55%', plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, padding: 10, font: { size: 11, family: 'PT Sans', weight: 'bold' }, color: '#4b5563' } }, tooltip: { bodyFont: { family: 'PT Sans' }, titleFont: { family: 'PT Sans' }, callbacks: { label: function(context) { return ` ${context.label}: ${context.raw} Titik`; } } }, datalabels: { color: '#ffffff', font: { weight: 'bold', size: 12, family: 'PT Sans' }, formatter: (value, ctx) => { let sum = 0; let dataArr = ctx.chart.data.datasets[0].data; dataArr.map(data => { sum += data; }); if(value === 0) return ''; return (value * 100 / sum).toFixed(1) + "%"; } } } } });
+                currentChart = new Chart(ctx, { type: 'doughnut', data: { labels: chartLabels, datasets: [{ data: chartData, backgroundColor: chartColors, borderWidth: 2, borderColor: '#ffffff', hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '55%', plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, padding: 10, font: { size: 11, family: 'PT Sans', weight: 'bold' }, color: '#4b5563' } }, datalabels: { color: '#ffffff', font: { weight: 'bold', size: 12, family: 'PT Sans' }, formatter: (value, ctx) => { let sum = 0; ctx.chart.data.datasets[0].data.map(d => { sum += d; }); return value === 0 ? '' : (value * 100 / sum).toFixed(1) + "%"; } } } } });
             }
         }
+
+        // TRIGGER CHART.JS KETIKA POPUP LEAFLET TERBUKA
+        map.on('popupopen', function(e) {
+            let item = e.popup.options.itemData;
+            if(!item) return;
+            
+            // Sedikit delay agar DOM HTML Popup benar-benar selesai di-render oleh browser
+            setTimeout(() => {
+                let canvas = document.getElementById('chart-' + item.rowId);
+                if(canvas) {
+                    new Chart(canvas.getContext('2d'), {
+                        type: 'line',
+                        data: {
+                            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei'],
+                            datasets: [{
+                                label: 'Pelanggan/Hari',
+                                data: [item.avg_jan, item.avg_feb, item.avg_mar, item.avg_apr, item.avg_mei],
+                                borderColor: '#06367c', backgroundColor: 'rgba(6, 54, 124, 0.1)',
+                                borderWidth: 2, fill: true, tension: 0.4, pointRadius: 3
+                            }]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            plugins: { legend: {display: false}, datalabels: {display: false} },
+                            scales: { x: {display: true, ticks:{font:{size:9}}}, y: {display: false, beginAtZero: true} }
+                        }
+                    });
+                }
+            }, 50);
+        });
 
         function createPopupContent(item, sym) {
             let fixLink = item.dokumentasi;
@@ -534,16 +447,32 @@
             const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}`;
             const btnDirections = `<a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 flex justify-center items-center bg-tjorange hover:bg-yellow-500 text-tjblue font-bold py-2.5 md:py-3 text-[10px] md:text-[11px] uppercase tracking-widest transition border-r border-white/20"><i class="fa-solid fa-route mr-1.5"></i> Navigasi</a>`;
 
+            let trendIcon = item.avg_mei > item.avg_jan ? '<i class="fa-solid fa-arrow-trend-up text-green-500"></i>' : '<i class="fa-solid fa-arrow-trend-down text-red-500"></i>';
+
             return `
                 <div class="flex flex-col bg-white rounded-xl font-['PT_Sans']">
                     <div class="${sym.bg} ${sym.text} px-4 py-3 flex items-center justify-between rounded-t-xl"><div class="pr-2"><h4 class="font-bold text-[13px] md:text-[15px] uppercase tracking-wider mb-1">${item.nama}</h4><span class="inline-block bg-white/20 backdrop-blur-sm text-${sym.text} text-[9px] md:text-[11px] px-2 py-0.5 rounded shadow-sm border border-white/30"><i class="fa-solid fa-route mr-1.5"></i>RUTE: <strong class="font-bold">${item.rute || '-'}</strong></span></div><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/40 shadow-inner"><i class="fa-solid ${sym.icon} text-lg md:text-xl"></i></div></div>
+                    
+                    <div class="px-4 py-3 bg-blue-50 border-b border-gray-200">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-bold text-tjblue uppercase text-[10px]"><i class="fa-solid fa-users mr-1"></i> Data Pelanggan</span>
+                            <span class="font-bold text-[12px] text-tjblue">${trendIcon} ${item.avg_pelanggan} <span class="text-[9px] text-gray-500 font-normal">org/hari</span></span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2 border-b border-blue-100 pb-1.5">
+                            <span class="text-gray-500 text-[9px] font-bold">HARI TERPADAT:</span>
+                            <span class="font-bold text-tjorange text-[10px] uppercase">${item.hari_terpadat || '-'}</span>
+                        </div>
+                        <div class="w-full h-20 relative">
+                            <canvas id="chart-${item.rowId}"></canvas>
+                        </div>
+                    </div>
+
                     <div class="px-4 py-3 text-[11px] md:text-[12px] text-gray-600 space-y-2 bg-white">
                         <div class="flex flex-col border-b border-gray-100 pb-1.5"><span class="font-bold text-gray-400 uppercase tracking-wider text-[9px] md:text-[10px]">Administrasi</span><span class="font-bold text-tjblue text-[11px] md:text-[12px]"><i class="fa-solid fa-map-location-dot mr-1.5 opacity-60"></i> ${item.lokasi || `Kel. ${item.kelurahan}, Kec. ${item.kecamatan}, ${item.kabupaten}`}</span></div>
                         <div class="flex flex-col border-b border-gray-100 pb-1.5"><span class="font-bold text-gray-400 uppercase tracking-wider">Bus Stop (E)</span><span class="font-bold text-gray-800 text-[12px] md:text-[13px]">${item.kondisiE || '-'}</span></div>
                         <div class="flex flex-col border-b border-gray-100 pb-1.5"><span class="font-bold text-gray-400 uppercase tracking-wider">Papan Rute (F)</span><span class="font-bold text-gray-800 text-[12px] md:text-[13px]">${item.kondisiF || '-'}</span></div>
                         <div class="flex flex-col"><span class="font-bold text-gray-400 uppercase tracking-wider">Area Tunggu (G)</span><span class="font-bold text-gray-800 text-[12px] md:text-[13px]">${item.kondisiG || '-'}</span></div>
                     </div>
-                    <div class="px-4 py-2.5 bg-yellow-50/50 border-t border-gray-100"><span class="block text-[10px] font-bold text-gray-500 uppercase mb-1"><i class="fa-solid fa-comment-dots mr-1"></i> Catatan Surveyor</span><p class="text-[11px] md:text-[12px] text-gray-700 leading-relaxed">${item.keterangan || '<span class="italic opacity-50">Tidak ada catatan</span>'}</p></div>
                     <div class="flex w-full rounded-b-xl overflow-hidden">${btnDirections}${btnDokumentasi}</div>
                 </div>`;
         }
