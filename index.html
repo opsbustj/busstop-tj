@@ -13,7 +13,7 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
-    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="https://unpkg.com/leaflet-heat@0.2.0/dist/leaflet-heat.js"></script>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
@@ -32,11 +32,30 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .legend-item { transition: all 0.2s ease-in-out; }
         .legend-item:hover { transform: translateX(5px); }
-        .leaflet-control-layers { border-radius: 8px !important; border: 2px solid #e2e8f0 !important; font-family: 'PT Sans', sans-serif; font-weight: bold; background-color: rgba(255,255,255,0.95) !important; backdrop-filter: blur(4px); }
         
-        /* CSS Untuk Toggle Button */
-        input:checked ~ .dot { transform: translateX(100%); }
-        input:checked ~ .block-bg { background-color: #ef4444; }
+        /* CSS Widget Layer Custom di Kanan Bawah */
+        .custom-layer-control {
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
+            padding: 12px 15px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            border: 1px solid #e2e8f0; font-family: 'PT Sans', sans-serif; min-width: 220px;
+        }
+        .layer-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed #e2e8f0; }
+        .layer-row:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+        .layer-toggle { cursor: pointer; color: #06367c; transition: color 0.2s; font-size: 16px; width: 25px; text-align: center; }
+        .layer-toggle:hover { color: #F2A900; }
+        .layer-toggle.off { color: #94a3b8; }
+        .layer-label { flex-grow: 1; margin-left: 10px; font-weight: bold; font-size: 12px; color: #334155; }
+        
+        /* Magic CSS untuk Diagram Pie Klaster */
+        .pie-cluster {
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: 3px solid white; transition: transform 0.2s;
+        }
+        .pie-cluster:hover { transform: scale(1.15); z-index: 1000; }
+        .pie-inner {
+            background-color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; color: #06367c;
+        }
     </style>
 </head>
 <body class="flex flex-col h-screen overflow-hidden">
@@ -71,7 +90,7 @@
                 </div>
 
                 <div class="pt-2 border-t border-gray-100 space-y-3">
-                    <h4 class="text-[11px] md:text-xs font-bold uppercase tracking-wider text-gray-500"><i class="fa-solid fa-filter mr-1.5 text-tjorange"></i> Filter Wilayah</h4>
+                    <h4 class="text-[11px] md:text-xs font-bold uppercase tracking-wider text-gray-500"><i class="fa-solid fa-filter mr-1.5 text-tjorange"></i> Filter Wilayah Administrasi</h4>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-[9px] md:text-[10px] font-bold text-tjblue uppercase mb-1">Kab/Kota</label>
@@ -98,21 +117,7 @@
                     </select>
                 </div>
 
-                <div class="pt-3 border-t border-gray-100 flex items-center justify-between">
-                    <div class="flex items-center">
-                        <i class="fa-solid fa-fire-flame-curved text-red-500 mr-2 text-lg"></i>
-                        <span class="text-[11px] md:text-xs font-bold uppercase tracking-wider text-gray-700">Heatmap Laka Pasif</span>
-                    </div>
-                    <label class="flex items-center cursor-pointer">
-                        <div class="relative">
-                            <input type="checkbox" id="toggle-laka" class="sr-only" onchange="toggleHeatmap()">
-                            <div class="block-bg block bg-gray-300 w-10 h-6 rounded-full transition-colors shadow-inner"></div>
-                            <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform shadow-md"></div>
-                        </div>
-                    </label>
-                </div>
-
-                <div class="pt-2 md:pt-4">
+                <div class="pt-1 md:pt-2">
                     <div class="flex justify-between items-end mb-3 border-b border-gray-200 pb-2">
                         <h3 class="text-[11px] md:text-xs font-bold text-gray-500 uppercase"><i class="fa-solid fa-list-check mr-1"></i> Keterangan</h3>
                         <span class="text-[10px] md:text-[11px] font-bold text-tjblue bg-blue-50 px-2.5 py-1 rounded">Total: <span id="score-total">0</span> Titik</span>
@@ -146,27 +151,65 @@
     </div>
 
     <script>
-        // GANTI URL INI JIKA ANDA MELAKUKAN DEPLOY BARU
         const API_URL = "https://script.google.com/macros/s/AKfycbwAD4YTgVlPdQppFyoyjB_DBsgMq6iLmkQ8gK2YraHaXKxsofp80iBfxF1AEctSz9tP/exec";
 
         let map, allData = [];
         let currentChart = null, activeLegendFilter = null; 
-        let globalAvgDemand = 0; // Untuk Matriks Prioritas
+        let globalAvgDemand = 0; 
         
         let boundaryData = { kabupaten: null, kecamatan: null, kelurahan: null };
-        let polyCenters = { KAB: {}, KEC: {}, KEL: {} }; 
         
-        let heatLayer = null; // Menyimpan layer heatmap laka
+        let heatLayer = null; 
+        let isBusStopVisible = true;
+        let isHeatmapVisible = false;
 
         let polyLayerKab = L.layerGroup(); let polyLayerKec = L.layerGroup(); let polyLayerKel = L.layerGroup(); let polyLayerLineDesa = L.layerGroup(); 
+        
+        // Peta Warna untuk Render Gradient Pie Chart
+        const colorHexMap = {
+            'bg-red-500': '#ef4444', 'bg-red-600': '#dc2626', 'bg-orange-500': '#f97316',
+            'bg-yellow-400': '#facc15', 'bg-green-500': '#22c55e', 'bg-purple-500': '#a855f7', 'bg-gray-300': '#d1d5db'
+        };
+
+        // FUNGSI PEMBUAT DIAGRAM PIE CSS
+        function buildPieChartHTML(colorsCountObj, totalCount, outerSizeCls, innerSizeCls, fontSize) {
+            let gradientStr = "";
+            let currentPercentage = 0;
+            
+            // Urutkan dari yang terbesar agar proporsinya rapi
+            let sortedColors = Object.entries(colorsCountObj).sort((a, b) => b[1] - a[1]);
+            
+            sortedColors.forEach(([bgClass, count], index) => {
+                let hexColor = colorHexMap[bgClass] || '#06367c'; // Default fallback
+                let pct = (count / totalCount) * 100;
+                gradientStr += `${hexColor} ${currentPercentage}% ${currentPercentage + pct}%`;
+                if (index < sortedColors.length - 1) gradientStr += ", ";
+                currentPercentage += pct;
+            });
+
+            return `
+                <div class="pie-cluster ${outerSizeCls}" style="background: conic-gradient(${gradientStr});">
+                    <div class="pie-inner ${innerSizeCls} shadow-inner" style="font-size: ${fontSize};">
+                        ${totalCount}
+                    </div>
+                </div>`;
+        }
+
         let layerAdminKab = L.layerGroup(); let layerAdminKec = L.layerGroup(); let layerAdminKel = L.layerGroup();
         
         let layerTitikDetil = L.markerClusterGroup({
             chunkedLoading: true, maxClusterRadius: 4, disableClusteringAtZoom: 18, 
             iconCreateFunction: function(cluster) {
                 const markers = cluster.getAllChildMarkers();
-                const bg = markers[0].options.customBg || "bg-tjblue"; const text = markers[0].options.customText || "text-white";
-                return L.divIcon({ html: `<div class="${bg} ${text} font-bold rounded-full w-8 h-8 flex items-center justify-center border-2 border-white shadow-xl text-[11px] ring-2 ring-black/10">${cluster.getChildCount()}</div>`, className: '', iconSize: L.point(32, 32) });
+                let counts = {};
+                markers.forEach(m => {
+                    const bg = m.options.customBg || "bg-tjblue";
+                    counts[bg] = (counts[bg] || 0) + 1;
+                });
+                return L.divIcon({ 
+                    html: buildPieChartHTML(counts, cluster.getChildCount(), 'w-10 h-10', 'w-8 h-8', '11px'), 
+                    className: '', iconSize: L.point(40, 40) 
+                });
             }
         });
 
@@ -180,7 +223,81 @@
         const jabodetabekBounds = L.latLngBounds(L.latLng(-6.8, 106.5), L.latLng(-5.9, 107.2));
         map = L.map('map', { maxZoom: 18, minZoom: 10, maxBounds: jabodetabekBounds, maxBoundsViscosity: 1.0, zoomControl: false, layers: [cartoLight] }).setView([-6.2088, 106.8456], 12);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
-        L.control.layers({ "Carto Light": cartoLight, "Carto Dark": cartoDark, "Google Maps": googleStreets, "Google Satelit": googleSat }, null, { position: 'bottomleft' }).addTo(map);
+
+        // =====================================================================
+        // CUSTOM WIDGET LAYER CONTROL (Menggantikan bawaan Leaflet)
+        // =====================================================================
+        let currentBasemap = cartoLight;
+        
+        L.Control.CustomLayers = L.Control.extend({
+            onAdd: function(map) {
+                let div = L.DomUtil.create('div', 'custom-layer-control leaflet-control');
+                L.DomEvent.disableClickPropagation(div);
+                L.DomEvent.disableScrollPropagation(div);
+
+                div.innerHTML = `
+                    <div class="layer-row">
+                        <i id="toggle-busstop" class="fa-solid fa-eye layer-toggle" title="Matikan/Nyalakan Bus Stop" onclick="toggleBusStopLayer()"></i>
+                        <span class="layer-label text-tjblue"><i class="fa-solid fa-map-pin mr-1"></i> Data Bus Stop</span>
+                    </div>
+                    <div class="layer-row">
+                        <i id="toggle-heatmap" class="fa-solid fa-eye-slash layer-toggle off" title="Matikan/Nyalakan Heatmap" onclick="toggleHeatmapLayer()"></i>
+                        <span class="layer-label text-red-600"><i class="fa-solid fa-fire-flame-curved mr-1"></i> Heatmap Laka</span>
+                    </div>
+                    <div class="layer-row" style="border:none; margin-top: 5px;">
+                        <i class="fa-solid fa-layer-group layer-toggle off" style="cursor:default;"></i>
+                        <select id="basemap-select" onchange="changeBasemap()" class="layer-label p-1 border rounded w-full bg-gray-50 cursor-pointer outline-none">
+                            <option value="light">Carto Light</option>
+                            <option value="dark">Carto Dark</option>
+                            <option value="street">Google Street</option>
+                            <option value="sat">Google Satelit</option>
+                        </select>
+                    </div>
+                `;
+                return div;
+            }
+        });
+        new L.Control.CustomLayers({ position: 'bottomright' }).addTo(map);
+
+        window.toggleBusStopLayer = function() {
+            isBusStopVisible = !isBusStopVisible;
+            const icon = document.getElementById('toggle-busstop');
+            if (isBusStopVisible) {
+                icon.className = "fa-solid fa-eye layer-toggle";
+                updateActiveMapLayer(); // Nyalakan ulang sesuai zoom
+            } else {
+                icon.className = "fa-solid fa-eye-slash layer-toggle off";
+                // Matikan semua layer terkait bus stop
+                map.removeLayer(layerAdminKab); map.removeLayer(layerAdminKec); map.removeLayer(layerAdminKel); map.removeLayer(layerTitikDetil);
+                map.removeLayer(polyLayerKab); map.removeLayer(polyLayerKec); map.removeLayer(polyLayerKel); map.removeLayer(polyLayerLineDesa);
+            }
+        };
+
+        window.toggleHeatmapLayer = function() {
+            if(!heatLayer) { alert("Data Heatmap sedang dimuat..."); return; }
+            isHeatmapVisible = !isHeatmapVisible;
+            const icon = document.getElementById('toggle-heatmap');
+            if (isHeatmapVisible) {
+                icon.className = "fa-solid fa-eye layer-toggle text-red-500";
+                map.addLayer(heatLayer);
+                // Pindahkan heatmap ke belakang agar titik bus stop tidak tertutup
+                if(heatLayer._canvas) heatLayer._canvas.style.zIndex = "300"; 
+            } else {
+                icon.className = "fa-solid fa-eye-slash layer-toggle off";
+                map.removeLayer(heatLayer);
+            }
+        };
+
+        window.changeBasemap = function() {
+            const val = document.getElementById('basemap-select').value;
+            map.removeLayer(currentBasemap);
+            if(val === 'light') currentBasemap = cartoLight;
+            else if(val === 'dark') currentBasemap = cartoDark;
+            else if(val === 'street') currentBasemap = googleStreets;
+            else if(val === 'sat') currentBasemap = googleSat;
+            map.addLayer(currentBasemap);
+            currentBasemap.bringToBack();
+        };
 
         const sidebar = document.getElementById('sidebar'), dragHandle = document.getElementById('drag-handle');
         let isResizing = false;
@@ -188,7 +305,7 @@
         document.addEventListener('mousemove', (e) => { if (!isResizing) return; let newWidth = e.clientX; if (newWidth > 320 && newWidth < window.innerWidth * 0.7) { sidebar.style.width = newWidth + 'px'; if(map) map.invalidateSize(); } });
         document.addEventListener('mouseup', () => { if (isResizing) { isResizing = false; document.body.style.cursor = 'default'; } });
 
-        map.on('zoomend', () => { if(allData.length > 0) updateActiveMapLayer(); });
+        map.on('zoomend', () => { if(allData.length > 0 && isBusStopVisible) updateActiveMapLayer(); });
 
         function normName(str) {
             let s = (str || "").toUpperCase();
@@ -202,7 +319,6 @@
                     if(data.error) { alert("Error database: " + data.error); return; }
                     allData = data;
                     
-                    // Hitung Rata-rata Pelanggan Global se-Jakarta
                     let totalD = 0, countD = 0;
                     allData.forEach(d => { if(d.avg_pelanggan > 0) { totalD += d.avg_pelanggan; countD++; } });
                     globalAvgDemand = countD > 0 ? (totalD / countD) : 0;
@@ -210,46 +326,35 @@
                     document.getElementById('loading-badge').classList.add('hidden');
                     populateFilterDropdowns(); 
                     loadGeoJsonLayersLazy();
-                }).catch(err => { alert("GAGAL MENSINKRONKAN DATA:\n" + err.message); document.getElementById('loading-badge').classList.add('hidden'); });
+                }).catch(err => { alert("GAGAL MENSINKRONKAN DATA SPREADSHEET:\n" + err.message); document.getElementById('loading-badge').classList.add('hidden'); });
         });
 
         async function loadGeoJsonLayersLazy() {
             async function pullFile(name) { try { const res = await fetch(name); return res.ok ? await res.json() : null; } catch(e) { return null; } }
             const shpKab = await pullFile('Jakarta_Kabupaten_Kota.geojson'); const shpKec = await pullFile('Jakarta_Kecamatan.geojson');
             const shpKel = await pullFile('Jakarta_Desa.geojson'); const shpKelGaris = await pullFile('Jakarta_Desa_Line.geojson');
-            const lakaData = await pullFile('laka_pasif.geojson'); // Load Heatmap Data
+            const lakaData = await pullFile('laka_pasif.geojson');
 
-            const tempLayer = L.geoJSON(null);
             if(shpKab) {
                 boundaryData.kabupaten = shpKab;
-                shpKab.features.forEach(f => { tempLayer.addData(f); polyCenters.KAB[normName(f.properties.WADMKK || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
                 L.geoJSON(shpKab, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKK || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKab);
             }
             if(shpKec) {
                 boundaryData.kecamatan = shpKec;
-                shpKec.features.forEach(f => { tempLayer.addData(f); polyCenters.KEC[normName(f.properties.WADMKC || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
                 L.geoJSON(shpKec, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKC || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKec);
             }
             if(shpKel) {
                 boundaryData.kelurahan = shpKel;
-                shpKel.features.forEach(f => { tempLayer.addData(f); polyCenters.KEL[normName(f.properties.WADMKD || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
                 L.geoJSON(shpKel, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKD || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKel);
             }
             if(shpKelGaris) L.geoJSON(shpKelGaris, { style: { color: "#06367c", weight: 1.5, opacity: 0.5, dashArray: '5, 5', fill: false } }).addTo(polyLayerLineDesa);
 
-            // Eksekusi Data Laka ke Heatmap
             if(lakaData) {
                 let hPts = [];
                 lakaData.features.forEach(f => { if(f.geometry && f.geometry.coordinates) hPts.push([f.geometry.coordinates[1], f.geometry.coordinates[0], 1]); });
                 heatLayer = L.heatLayer(hPts, {radius: 20, blur: 15, maxZoom: 15, gradient: {0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red'}});
             }
             processAndRenderLayers();
-        }
-
-        function toggleHeatmap() {
-            const cb = document.getElementById('toggle-laka');
-            if(cb.checked && heatLayer) map.addLayer(heatLayer);
-            else if(heatLayer) map.removeLayer(heatLayer);
         }
 
         function populateFilterDropdowns() {
@@ -274,7 +379,6 @@
         function toggleChart() { const p = document.getElementById('chart-panel-content'), b = document.getElementById('show-chart-btn'); p.classList.toggle('hidden'); b.classList.toggle('hidden'); }
         window.addEventListener('resize', () => { if(map) map.invalidateSize(); });
 
-        // FUNGSI SYMBOLOGY DIPERBARUI DENGAN MATRIKS PRIORITAS
         function getSymbology(item, mode) {
             if (mode === 'PRIORITAS') {
                 let supply = (item.kondisiE || "").toLowerCase();
@@ -329,11 +433,13 @@
                         countMapRendered++;
                         const htmlIcon = `<div class="w-7 h-7 md:w-8 md:h-8 rounded-full ${sym.bg} ${sym.text} border-2 border-white flex items-center justify-center shadow-lg hover:scale-125 transition-transform"><i class="fa-solid ${sym.icon} text-[11px] md:text-[13px]"></i></div>`;
                         const markerIcon = L.divIcon({ html: htmlIcon, className: '', iconSize: L.point(32,32), iconAnchor: [16,16] });
+                        
+                        // Pass bg to marker option so MarkerCluster can read it for Pie Chart
                         const marker = L.marker([item.lat, item.lng], { icon: markerIcon, customBg: sym.bg, customText: sym.text });
-                        // Lempar data komplit ke popup
                         marker.bindPopup(() => createPopupContent(item, sym), { className: 'custom-popup', itemData: item });
                         layerTitikDetil.addLayer(marker);
 
+                        // Agregasi Data-Driven Centroid
                         aggregateDataHierarchy(grupKab, item.kabupaten, item, sym.bg, sym.text);
                         aggregateDataHierarchy(grupKec, item.kecamatan, item, sym.bg, sym.text);
                         aggregateDataHierarchy(grupKel, item.kelurahan, item, sym.bg, sym.text);
@@ -341,33 +447,35 @@
                 }
             });
 
-            renderSemanticLayer(layerAdminKab, grupKab, "Kabupaten / Kota"); renderSemanticLayer(layerAdminKec, grupKec, "Kecamatan"); renderSemanticLayer(layerAdminKel, grupKel, "Kelurahan");
-            updateActiveMapLayer();
+            renderSemanticLayer(layerAdminKab, grupKab, "w-16 h-16 md:w-20 md:h-20", "w-12 h-12 md:w-16 md:h-16", "text-lg md:text-2xl"); 
+            renderSemanticLayer(layerAdminKec, grupKec, "w-14 h-14 md:w-16 md:h-16", "w-10 h-10 md:w-12 md:h-12", "text-base md:text-xl"); 
+            renderSemanticLayer(layerAdminKel, grupKel, "w-10 h-10 md:w-12 md:h-12", "w-7 h-7 md:w-9 md:h-9", "text-xs md:text-base");
+            
+            if(isBusStopVisible) updateActiveMapLayer();
+            
             document.getElementById('score-total').innerText = activeLegendFilter ? `${countMapRendered} / ${countTotalSearched}` : countTotalSearched;
             updateScorecardAndChart(Object.values(summaryStats).sort((a,b) => b.count - a.count), countTotalSearched); 
         }
 
+        // MENGHITUNG RATA-RATA LOKASI HALTE (DATA-DRIVEN CENTROID)
         function aggregateDataHierarchy(groupObj, rawName, item, bgStr, textStr) {
             let key = normName(rawName || "Lainnya");
             if(!groupObj[key]) groupObj[key] = { latSum: 0, lngSum: 0, count: 0, colors: {} };
             groupObj[key].latSum += parseFloat(item.lat); groupObj[key].lngSum += parseFloat(item.lng); groupObj[key].count++;
-            const colorKey = `${bgStr}|${textStr}`; groupObj[key].colors[colorKey] = (groupObj[key].colors[colorKey] || 0) + 1;
+            const colorKey = bgStr; // Simpan class background (cth: bg-red-500)
+            groupObj[key].colors[colorKey] = (groupObj[key].colors[colorKey] || 0) + 1;
         }
 
-        function renderSemanticLayer(targetLayerGroup, aggregatedDataObj, levelName) {
+        // RENDER KLASTER SEBAGAI PIE CHART
+        function renderSemanticLayer(targetLayerGroup, aggregatedDataObj, outerCls, innerCls, fontCls) {
             for (const key in aggregatedDataObj) {
                 const grp = aggregatedDataObj[key];
-                let center = null;
-                if(levelName === "Kabupaten / Kota") center = polyCenters.KAB[key]; else if(levelName === "Kecamatan") center = polyCenters.KEC[key]; else if(levelName === "Kelurahan") center = polyCenters.KEL[key];
-                const finalLat = center ? center.lat : (grp.latSum / grp.count); const finalLng = center ? center.lng : (grp.lngSum / grp.count);
+                // Titik Peta Berdasarkan Rata-Rata Data Halte (Fix Bogor/Satelit City Out-of-bounds)
+                const finalLat = grp.latSum / grp.count; 
+                const finalLng = grp.lngSum / grp.count;
 
-                let domColor = "bg-tjblue|text-white"; let max = 0;
-                for (const cKey in grp.colors) { if (grp.colors[cKey] > max) { max = grp.colors[cKey]; domColor = cKey; } }
-                const [bg, tx] = domColor.split('|');
-
-                const sizeClass = levelName === "Kelurahan" ? "w-11 h-11 text-[10px] ring-4 ring-black/10" : (levelName === "Kecamatan" ? "w-13 h-13 text-[12px] ring-[6px] border-4" : "w-15 h-15 text-[14px] ring-[8px] border-4");
-                const html = `<div class="${bg} ${tx} font-bold rounded-full ${sizeClass} flex items-center justify-center border-white shadow-2xl transition-transform hover:scale-110"><span>${grp.count}</span></div>`;
-                targetLayerGroup.addLayer(L.marker([finalLat, finalLng], { icon: L.divIcon({ html: html, className: '', iconSize: L.point(60,60), iconAnchor: [30,30] }) }));
+                const html = buildPieChartHTML(grp.colors, grp.count, outerCls, innerCls, fontCls);
+                targetLayerGroup.addLayer(L.marker([finalLat, finalLng], { icon: L.divIcon({ html: html, className: '', iconSize: L.point(80,80), iconAnchor: [40,40] }) }));
             }
         }
 
@@ -410,12 +518,9 @@
             }
         }
 
-        // TRIGGER CHART.JS KETIKA POPUP LEAFLET TERBUKA
         map.on('popupopen', function(e) {
             let item = e.popup.options.itemData;
             if(!item) return;
-            
-            // Sedikit delay agar DOM HTML Popup benar-benar selesai di-render oleh browser
             setTimeout(() => {
                 let canvas = document.getElementById('chart-' + item.rowId);
                 if(canvas) {
@@ -423,18 +528,9 @@
                         type: 'line',
                         data: {
                             labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei'],
-                            datasets: [{
-                                label: 'Pelanggan/Hari',
-                                data: [item.avg_jan, item.avg_feb, item.avg_mar, item.avg_apr, item.avg_mei],
-                                borderColor: '#06367c', backgroundColor: 'rgba(6, 54, 124, 0.1)',
-                                borderWidth: 2, fill: true, tension: 0.4, pointRadius: 3
-                            }]
+                            datasets: [{ label: 'Pelanggan/Hari', data: [item.avg_jan, item.avg_feb, item.avg_mar, item.avg_apr, item.avg_mei], borderColor: '#06367c', backgroundColor: 'rgba(6, 54, 124, 0.1)', borderWidth: 2, fill: true, tension: 0.4, pointRadius: 3 }]
                         },
-                        options: {
-                            responsive: true, maintainAspectRatio: false,
-                            plugins: { legend: {display: false}, datalabels: {display: false} },
-                            scales: { x: {display: true, ticks:{font:{size:9}}}, y: {display: false, beginAtZero: true} }
-                        }
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display: false}, datalabels: {display: false} }, scales: { x: {display: true, ticks:{font:{size:9}}}, y: {display: false, beginAtZero: true} } }
                     });
                 }
             }, 50);
@@ -454,17 +550,17 @@
                     <div class="${sym.bg} ${sym.text} px-4 py-3 flex items-center justify-between rounded-t-xl"><div class="pr-2"><h4 class="font-bold text-[13px] md:text-[15px] uppercase tracking-wider mb-1">${item.nama}</h4><span class="inline-block bg-white/20 backdrop-blur-sm text-${sym.text} text-[9px] md:text-[11px] px-2 py-0.5 rounded shadow-sm border border-white/30"><i class="fa-solid fa-route mr-1.5"></i>RUTE: <strong class="font-bold">${item.rute || '-'}</strong></span></div><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/40 shadow-inner"><i class="fa-solid ${sym.icon} text-lg md:text-xl"></i></div></div>
                     
                     <div class="px-4 py-3 bg-blue-50 border-b border-gray-200">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="font-bold text-tjblue uppercase text-[10px]"><i class="fa-solid fa-users mr-1"></i> Data Pelanggan</span>
-                            <span class="font-bold text-[12px] text-tjblue">${trendIcon} ${item.avg_pelanggan} <span class="text-[9px] text-gray-500 font-normal">org/hari</span></span>
+                        <div class="flex justify-between items-start mb-2 border-b border-blue-100 pb-2">
+                            <div class="flex flex-col">
+                                <span class="font-bold text-tjblue uppercase text-[10px] mb-1"><i class="fa-solid fa-users mr-1"></i> Data Pelanggan</span>
+                                <span class="font-bold text-[13px] text-tjblue">${trendIcon} ${item.avg_pelanggan} <span class="text-[9px] text-gray-500 font-normal">org/hari</span></span>
+                            </div>
+                            <div class="flex flex-col text-right">
+                                <span class="text-gray-500 text-[9px] font-bold mb-1">HARI TERPADAT:</span>
+                                <span class="font-bold text-tjorange text-[11px] uppercase">${item.hari_terpadat || '-'}</span>
+                            </div>
                         </div>
-                        <div class="flex justify-between items-center mb-2 border-b border-blue-100 pb-1.5">
-                            <span class="text-gray-500 text-[9px] font-bold">HARI TERPADAT:</span>
-                            <span class="font-bold text-tjorange text-[10px] uppercase">${item.hari_terpadat || '-'}</span>
-                        </div>
-                        <div class="w-full h-20 relative">
-                            <canvas id="chart-${item.rowId}"></canvas>
-                        </div>
+                        <div class="w-full h-20 relative"><canvas id="chart-${item.rowId}"></canvas></div>
                     </div>
 
                     <div class="px-4 py-3 text-[11px] md:text-[12px] text-gray-600 space-y-2 bg-white">
