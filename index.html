@@ -6,7 +6,6 @@
     <title>Dashboard Kondisi Bus Stop</title>
     
     <link rel="icon" type="image/x-icon" href="favicon.ico">
-    
     <script src="https://cdn.tailwindcss.com"></script>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -22,24 +21,23 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     
-    <script>
-        tailwind.config = { theme: { extend: { colors: { tjblue: '#06367c', tjorange: '#F2A900' } } } }
-    </script>
+    <script>tailwind.config = { theme: { extend: { colors: { tjblue: '#06367c', tjorange: '#F2A900' } } } }</script>
     <style>
         html, body { height: 100%; margin: 0; background-color: #f8fafc; font-family: 'PT Sans', sans-serif; }
         #map { height: 100%; width: 100%; z-index: 10; }
-        
         .custom-popup .leaflet-popup-content-wrapper { padding: 0; overflow: hidden; border-radius: 12px; border: none; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
         .custom-popup .leaflet-popup-content { margin: 0; width: 300px !important; }
         @media (min-width: 768px) { .custom-popup .leaflet-popup-content { width: 340px !important; } }
-
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        
         .legend-item { transition: all 0.2s ease-in-out; }
         .legend-item:hover { transform: translateX(5px); }
+        .leaflet-control-layers { border-radius: 8px !important; border: 2px solid #e2e8f0 !important; font-family: 'PT Sans', sans-serif; font-weight: bold; background-color: rgba(255,255,255,0.95) !important; backdrop-filter: blur(4px); }
         
-        /* CSS Widget Layer Control Kanan Bawah */
+        input:checked ~ .dot { transform: translateX(100%); }
+        input:checked ~ .block-bg { background-color: #ef4444; }
+
+        /* Widget Layer Custom di Kanan Bawah */
         .custom-layer-control {
             background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
             padding: 12px 15px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);
@@ -85,7 +83,7 @@
                 </div>
 
                 <div class="pt-2 border-t border-gray-100 space-y-3">
-                    <h4 class="text-[11px] md:text-xs font-bold uppercase tracking-wider text-gray-500"><i class="fa-solid fa-filter mr-1.5 text-tjorange"></i> Filter Wilayah</h4>
+                    <h4 class="text-[11px] md:text-xs font-bold uppercase tracking-wider text-gray-500"><i class="fa-solid fa-filter mr-1.5 text-tjorange"></i> Filter Wilayah Administrasi</h4>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-[9px] md:text-[10px] font-bold text-tjblue uppercase mb-1">Kab/Kota</label>
@@ -108,7 +106,7 @@
                         <option value="E">Ketersediaan Bus Stop</option>
                         <option value="F">Ketersediaan Papan Informasi Rute</option>
                         <option value="G">Kondisi Tempat Tunggu Pelanggan</option>
-                        <option value="PRIORITAS" class="font-bold text-red-600">Matriks Prioritas Intervensi</option>
+                        <option value="PRIORITAS" class="font-bold text-red-600">🔥 Matriks Prioritas Intervensi</option>
                     </select>
                 </div>
 
@@ -146,7 +144,6 @@
     </div>
 
     <script>
-        // SCRIPT GOOGLE APPS URL YANG BARU SUDAH DITANAMKAN
         const API_URL = "https://script.google.com/macros/s/AKfycbwAD4YTgVlPdQppFyoyjB_DBsgMq6iLmkQ8gK2YraHaXKxsofp80iBfxF1AEctSz9tP/exec";
 
         let map, allData = [];
@@ -156,6 +153,7 @@
         let boundaryData = { kabupaten: null, kecamatan: null, kelurahan: null };
         let polyCenters = { KAB: {}, KEC: {}, KEL: {} }; 
         
+        // Inisialisasi Heatmap Kosong (Data Menyusul Tanpa Mengganggu UI)
         let heatLayer = L.heatLayer([], {radius: 20, blur: 15, maxZoom: 15, gradient: {0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red'}});
         let isBusStopVisible = true;
         let isHeatmapVisible = false;
@@ -167,7 +165,7 @@
             'bg-yellow-400': '#facc15', 'bg-green-500': '#22c55e', 'bg-purple-500': '#a855f7', 'bg-gray-300': '#d1d5db'
         };
 
-        // RENDER GAYA BARU: STACKED BUBBLE SOLID 100% CHART DENGAN STROKE TEBAL 2PX TANPA LINGKARAN PUTIH DI TENGAH
+        // BUBBLE PIE CHART TANPA BOLONG TENGAH (FULL SOLID BUBBLE + STROKE)
         function buildPieChartHTML(colorsCountObj, totalCount, sizeCls, fontSize) {
             let gradientStr = ""; let currentPercentage = 0;
             let sortedColors = Object.entries(colorsCountObj).sort((a, b) => b[1] - a[1]);
@@ -181,7 +179,7 @@
             });
 
             return `
-                <div class="${sizeCls} rounded-full shadow-2xl border-2 border-white flex items-center justify-center transition-transform hover:scale-110" 
+                <div class="${sizeCls} rounded-full shadow-2xl border-2 border-white flex items-center justify-center transition-transform hover:scale-110 z-[1000]" 
                      style="background: conic-gradient(${gradientStr}); color: white; font-size: ${fontSize}; font-weight: 900; -webkit-text-stroke: 2px #000000; text-shadow: 0px 1px 3px rgba(0,0,0,0.8);">
                     ${totalCount}
                 </div>`;
@@ -189,7 +187,7 @@
 
         let layerAdminKab = L.layerGroup(); let layerAdminKec = L.layerGroup(); let layerAdminKel = L.layerGroup();
         
-        // INDIVIDUAL POINT CLUSTERING JELAS DI 4 PIXEL RADIUS
+        // MARKERCLUSTER UNTUK TITIK DETIL (RADIUS SANGAT KECIL = 4PX)
         let layerTitikDetil = L.markerClusterGroup({
             chunkedLoading: true, 
             maxClusterRadius: 4, 
@@ -292,8 +290,43 @@
             return n.includes("JAKARTA") || n.includes("KEPULAUAN SERIBU");
         }
 
+        function normName(str) {
+            let s = (str || "").toUpperCase();
+            if (s.includes("JAKARTA")) s = s.replace(/KOTA ADMINISTRASI\s|KOTA ADM\.\s|KOTA\s/ig, '');
+            return s.replace(/KECAMATAN\s|KEC\.\s/ig, '').replace(/KELURAHAN\s|KEL\.\s|DESA\s/ig, '').trim();
+        }
+
+        // =========================================================================
+        // FUNGSI GET SYMBOLOGY (MENENTUKAN WARNA BERDASARKAN KONDISI)
+        // =========================================================================
+        function getSymbology(item, mode) {
+            if (mode === 'PRIORITAS') {
+                let supply = (item.kondisiE || "").toLowerCase();
+                let isBuruk = supply.includes("tidak ada") || supply.includes("rusak") || supply.includes("terhalang");
+                let isTinggi = item.avg_pelanggan >= globalAvgDemand;
+                if (isBuruk && isTinggi) return { id: "p1", label: "Prioritas Kritis (Fasilitas Buruk, Penumpang Ramai)", bg: "bg-red-600", text: "text-white", hex: "#dc2626", icon: "fa-triangle-exclamation" };
+                if (isBuruk && !isTinggi) return { id: "p2", label: "Prioritas Kedua (Fasilitas Buruk, Penumpang Sepi)", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-wrench" };
+                if (!isBuruk && isTinggi) return { id: "p3", label: "Kondisi Ideal (Fasilitas Baik, Penumpang Ramai)", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check-double" };
+                if (!isBuruk && !isTinggi) return { id: "p4", label: "Underutilized (Fasilitas Baik, Penumpang Sepi)", bg: "bg-purple-500", text: "text-white", hex: "#a855f7", icon: "fa-arrow-trend-down" };
+            }
+
+            let text = "";
+            if (mode === 'E') text = (item.kondisiE || "").toLowerCase();
+            else if (mode === 'F') text = (item.kondisiF || "").toLowerCase();
+            else if (mode === 'G') text = (item.kondisiG || "").toLowerCase();
+
+            if (mode === 'E' || mode === 'F' || mode === 'G') {
+                if (text.includes("tidak ada") && mode !== 'G') return { id: "e1", label: "Tidak Ada / Tidak Tersedia", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-exclamation" };
+                if (mode === 'G' && text.includes("berbahaya")) return { id: "g1", label: "Berbahaya Untuk Berhenti", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-bus-simple" }; 
+                if (text.includes("terhalang") || text.includes("penerangan") || text.includes("kriminalitas")) return { id: "e2", label: "Rawan / Terhalang", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-ban" };
+                if (text.includes("rusak") || text.includes("bocor") || text.includes("pinggir")) return { id: "e3", label: "Rusak / Perlu Perhatian", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-wrench" };
+                if (text.includes("baik") || text.includes("ada") || text.includes("aman")) return { id: "e4", label: "Kondisi Baik / Aman", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
+            }
+            return { id: "unk", label: "Data Tidak Spesifik", bg: "bg-gray-300", text: "text-gray-700", hex: "#d1d5db", icon: "fa-circle-question" };
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
-            fetch(API_URL).then(res => { if (!res.ok) throw new Error("API Google Script menolak."); return res.json(); })
+            fetch(API_URL).then(res => { if (!res.ok) throw new Error("API Google Script menolak koneksi."); return res.json(); })
                 .then(data => {
                     if(data.error) { alert("Error database: " + data.error); return; }
                     allData = data;
@@ -305,7 +338,10 @@
                     document.getElementById('loading-badge').classList.add('hidden');
                     populateFilterDropdowns(); 
                     loadGeoJsonLayersLazy();
-                }).catch(err => { alert("GAGAL MENSINKRONKAN DATA SPREADSHEET:\n" + err.message); document.getElementById('loading-badge').classList.add('hidden'); });
+                }).catch(err => { 
+                    alert("GAGAL MENSINKRONKAN DATA SPREADSHEET:\n" + err.message); 
+                    document.getElementById('loading-badge').classList.add('hidden'); 
+                });
         });
 
         async function loadGeoJsonLayersLazy() {
@@ -356,11 +392,20 @@
             [...kelSet].sort().forEach(kel => { kelSel.add(new Option(kel, kel)); }); processAndRenderLayers();
         }
 
+        function toggleLegendFilter(id) { activeLegendFilter = (activeLegendFilter === id) ? null : id; processAndRenderLayers(); }
+        function resetLegendAndFilter() { activeLegendFilter = null; processAndRenderLayers(); }
+        function toggleSidebar() { sidebar.style.display = sidebar.style.display === 'none' ? 'flex' : 'none'; if(sidebar.style.display==='flex') sidebar.style.width = ''; setTimeout(() => { map.invalidateSize(); }, 50); }
+        function toggleChart() { const p = document.getElementById('chart-panel-content'), b = document.getElementById('show-chart-btn'); p.classList.toggle('hidden'); b.classList.toggle('hidden'); }
+        window.addEventListener('resize', () => { if(map) map.invalidateSize(); });
+
         function processAndRenderLayers() {
             const searchVal = document.getElementById('search-input').value.toLowerCase(), routeVal = document.getElementById('route-input').value.toLowerCase(); 
             const kabVal = document.getElementById('filter-kab').value, kecVal = document.getElementById('filter-kec').value, kelVal = document.getElementById('filter-kel').value;
             const viewMode = document.getElementById('view-mode').value;
             
+            const modeNames = { 'E': 'Ketersediaan Bus Stop', 'F': 'Papan Informasi Rute', 'G': 'Kondisi Tempat Tunggu', 'PRIORITAS': 'Matriks Prioritas Intervensi' };
+            document.getElementById('chart-subtitle').innerText = "Berdasarkan " + modeNames[viewMode];
+
             layerAdminKab.clearLayers(); layerAdminKec.clearLayers(); layerAdminKel.clearLayers(); layerTitikDetil.clearLayers(); 
             let countTotalSearched = 0, countMapRendered = 0, summaryStats = {}, grupKab = {}, grupKec = {}, grupKel = {};
 
@@ -382,6 +427,7 @@
                         const htmlIcon = `<div class="w-7 h-7 md:w-8 md:h-8 rounded-full ${sym.bg} ${sym.text} border-2 border-white flex items-center justify-center shadow-lg hover:scale-125 transition-transform"><i class="fa-solid ${sym.icon} text-[11px] md:text-[13px]"></i></div>`;
                         const markerIcon = L.divIcon({ html: htmlIcon, className: '', iconSize: L.point(32,32), iconAnchor: [16,16] });
                         
+                        // Pass bg ke option marker untuk Pie Chart Data Cluster
                         const marker = L.marker([item.lat, item.lng], { icon: markerIcon, customBg: sym.bg, customText: sym.text });
                         marker.bindPopup(() => createPopupContent(item, sym), { className: 'custom-popup', itemData: item });
                         layerTitikDetil.addLayer(marker);
@@ -393,12 +439,13 @@
                 }
             });
 
-            // HYBRID ALGORITMA DI-PASSING KE SINI
+            // HYBRID ALGORITMA: Panggil Fungsi Render Layer Klaster
             renderSemanticLayer(layerAdminKab, grupKab, "Kabupaten / Kota", "w-14 h-14 md:w-16 md:h-16", "18px"); 
             renderSemanticLayer(layerAdminKec, grupKec, "Kecamatan", "w-12 h-12 md:w-14 md:h-14", "15px"); 
             renderSemanticLayer(layerAdminKel, grupKel, "Kelurahan", "w-10 h-10 md:w-12 md:h-12", "12px");
             
             if(isBusStopVisible) updateActiveMapLayer();
+            
             document.getElementById('score-total').innerText = activeLegendFilter ? `${countMapRendered} / ${countTotalSearched}` : countTotalSearched;
             updateScorecardAndChart(Object.values(summaryStats).sort((a,b) => b.count - a.count), countTotalSearched); 
         }
@@ -432,12 +479,13 @@
                     finalLng = grp.lngSum / grp.count;
                 }
 
+                // Bangun HTML Diagram Lingkaran
                 const html = buildPieChartHTML(grp.colors, grp.count, sizeCls, fontCls);
                 targetLayerGroup.addLayer(L.marker([finalLat, finalLng], { icon: L.divIcon({ html: html, className: '', iconSize: L.point(60,60), iconAnchor: [30,30] }) }));
             }
         }
 
-        // RENTANG ZOOM DIKUNCI MATANG SESUAI TITAH
+        // RENTANG ZOOM DIKUNCI MATANG SESUAI TITAH (10-11, 12-13, 14, 15+)
         function updateActiveMapLayer() {
             const z = map.getZoom(), levelIndicator = document.getElementById('indicator-level');
             map.removeLayer(layerAdminKab); map.removeLayer(layerAdminKec); map.removeLayer(layerAdminKel); map.removeLayer(layerTitikDetil);
@@ -478,7 +526,7 @@
             if(window.getComputedStyle(canvasWrapper).display !== 'none') {
                 const ctx = document.getElementById('donutChart').getContext('2d');
                 if (currentChart) currentChart.destroy(); 
-                currentChart = new Chart(ctx, { type: 'doughnut', data: { labels: chartLabels, datasets: [{ data: chartData, backgroundColor: chartColors, borderWidth: 2, borderColor: '#ffffff', hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '55%', plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, padding: 10, font: { size: 11, family: 'PT Sans', weight: 'bold' }, color: '#4b5563' } }, datalabels: { color: '#ffffff', font: { weight: 'bold', size: 12, family: 'PT Sans' }, formatter: (value, ctx) => { let sum = 0; ctx.chart.data.datasets[0].data.map(d => { sum += d; }); return value === 0 ? '' : (value * 100 / sum).toFixed(1) + "%"; } } } } });
+                currentChart = new Chart(ctx, { type: 'doughnut', data: { labels: chartLabels, datasets: [{ data: chartData, backgroundColor: chartColors, borderWidth: 2, borderColor: '#ffffff', hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '55%', plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, padding: 10, font: { size: 11, family: 'PT Sans', weight: 'bold' }, color: '#4b5563' } }, tooltip: { bodyFont: { family: 'PT Sans' }, titleFont: { family: 'PT Sans' }, callbacks: { label: function(context) { return ` ${context.label}: ${context.raw} Titik`; } } }, datalabels: { color: '#ffffff', font: { weight: 'bold', size: 12, family: 'PT Sans' }, formatter: (value, ctx) => { let sum = 0; ctx.chart.data.datasets[0].data.map(d => { sum += d; }); return value === 0 ? '' : (value * 100 / sum).toFixed(1) + "%"; } } } } });
             }
         }
 
@@ -504,7 +552,6 @@
             let btnDokumentasi = `<div class="flex-1 flex justify-center items-center text-[10px] text-gray-400 italic bg-gray-50 border-t border-gray-100 p-2">Foto tak tersedia</div>`;
             if(fixLink && fixLink.length > 5) { if(!fixLink.startsWith('http://') && !fixLink.startsWith('https://')) fixLink = 'https://' + fixLink; btnDokumentasi = `<a href="${fixLink}" target="_blank" rel="noopener noreferrer" class="flex-1 flex justify-center items-center bg-tjblue hover:bg-blue-800 text-white font-bold py-2.5 md:py-3 text-[10px] md:text-[11px] uppercase tracking-widest transition"><i class="fa-solid fa-camera mr-1.5"></i> Foto</a>`; }
             
-            // PERBAIKAN LINK NAVIGASI STRATEGIS GOOGLE MAPS
             const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}`;
             const btnDirections = `<a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 flex justify-center items-center bg-tjorange hover:bg-yellow-500 text-tjblue font-bold py-2.5 md:py-3 text-[10px] md:text-[11px] uppercase tracking-widest transition border-r border-white/20"><i class="fa-solid fa-route mr-1.5"></i> Navigasi</a>`;
 
