@@ -8,6 +8,7 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- Leaflet & Plugins -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
@@ -15,6 +16,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     
+    <!-- FontAwesome & Google Fonts -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
     
@@ -37,7 +39,6 @@
         input:checked ~ .dot { transform: translateX(100%); }
         input:checked ~ .block-bg { background-color: #ef4444; }
 
-        /* Widget Layer Custom Kanan Bawah */
         .custom-layer-control {
             background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
             padding: 12px 15px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);
@@ -143,6 +144,7 @@
         </main>
     </div>
 
+    <!-- SCRIPT DASHBOARD -->
     <script>
         const API_URL = "https://script.google.com/macros/s/AKfycbzzwZ-d5NWrwZVtsl4crND4bAeD6NMGWN5Yav8gen7UuadhlqY20YcZpaGmsPvT-vCj/exec";
 
@@ -165,10 +167,6 @@
             'bg-yellow-400': '#facc15', 'bg-green-500': '#22c55e', 'bg-purple-500': '#a855f7', 'bg-gray-300': '#d1d5db'
         };
 
-        // =========================================================================
-        // UI BARU: STACKED BAR 100% DALAM ROUNDED RECTANGLE (PILL SHAPE)
-        // Tanpa Stroke Hitam, Tanpa Bolong Tengah. Sangat Elegan!
-        // =========================================================================
         function buildStackedBarHTML(colorsCountObj, totalCount, heightCls, fontSize) {
             let gradientStr = ""; let currentPercentage = 0;
             let sortedColors = Object.entries(colorsCountObj).sort((a, b) => b[1] - a[1]);
@@ -186,7 +184,6 @@
                 });
             }
 
-            // Memanfaatkan min-width dan padding-x agar kapsul memanjang otomatis
             return `
                 <div class="rounded-full shadow-lg border-[3px] border-white flex items-center justify-center transition-transform hover:scale-110 z-[1000] px-3 ${heightCls}" 
                      style="background: linear-gradient(to right, ${gradientStr}); color: white; font-size: ${fontSize}; font-weight: 800; min-width: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); text-shadow: 0px 1px 2px rgba(0,0,0,0.5);">
@@ -221,7 +218,6 @@
         map = L.map('map', { maxZoom: 18, minZoom: 10, maxBounds: jabodetabekBounds, maxBoundsViscosity: 1.0, zoomControl: false, layers: [cartoLight] }).setView([-6.2088, 106.8456], 12);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-        // CUSTOM WIDGET LAYER (Dropdown Basemap & Mata)
         let currentBasemap = cartoLight;
         L.Control.CustomLayers = L.Control.extend({
             onAdd: function(map) {
@@ -306,6 +302,9 @@
             return s.replace(/KECAMATAN\s|KEC\.\s/ig, '').replace(/KELURAHAN\s|KEL\.\s|DESA\s/ig, '').trim();
         }
 
+        // =========================================================================
+        // KEMBALI KE LABEL ASLI 100% SESUAI REQUEST AWAL (MAAFKAN SAYA!)
+        // =========================================================================
         function getSymbology(item, mode) {
             if (mode === 'PRIORITAS') {
                 let supply = (item.kondisiE || "").toLowerCase();
@@ -316,17 +315,25 @@
                 if (!isBuruk && isTinggi) return { id: "p3", label: "Kondisi Ideal (Fasilitas Baik, Penumpang Ramai)", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check-double" };
                 if (!isBuruk && !isTinggi) return { id: "p4", label: "Underutilized (Fasilitas Baik, Penumpang Sepi)", bg: "bg-purple-500", text: "text-white", hex: "#a855f7", icon: "fa-arrow-trend-down" };
             }
-            let text = "";
-            if (mode === 'E') text = (item.kondisiE || "").toLowerCase();
-            else if (mode === 'F') text = (item.kondisiF || "").toLowerCase();
-            else if (mode === 'G') text = (item.kondisiG || "").toLowerCase();
 
-            if (mode === 'E' || mode === 'F' || mode === 'G') {
-                if (text.includes("tidak ada") && mode !== 'G') return { id: "e1", label: "Tidak Ada / Tidak Tersedia", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-exclamation" };
-                if (mode === 'G' && text.includes("berbahaya")) return { id: "g1", label: "Berbahaya Untuk Berhenti", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-bus-simple" }; 
-                if (text.includes("terhalang") || text.includes("penerangan") || text.includes("kriminalitas")) return { id: "e2", label: "Rawan / Terhalang", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-ban" };
-                if (text.includes("rusak") || text.includes("bocor") || text.includes("pinggir")) return { id: "e3", label: "Rusak / Perlu Perhatian", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-wrench" };
-                if (text.includes("baik") || text.includes("ada") || text.includes("aman")) return { id: "e4", label: "Kondisi Baik / Aman", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
+            let text = "";
+            if (mode === 'E') {
+                text = (item.kondisiE || "").toLowerCase();
+                if (text.includes("tidak ada")) return { id: "e1", label: "Tidak Ada Bus Stop", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-exclamation" };
+                if (text.includes("terhalang")) return { id: "e2", label: "Ada, Namun Terhalang", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-ban" };
+                if (text.includes("rusak")) return { id: "e3", label: "Ada, Kondisi Rusak", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-wrench" };
+                if (text.includes("baik") || text.includes("ada")) return { id: "e4", label: "Ada, Kondisi Baik", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
+            } else if (mode === 'F') {
+                text = (item.kondisiF || "").toLowerCase();
+                if (text.includes("rusak") || text.includes("vandalisme")) return { id: "f1", label: "Ada, Rusak / Vandalisme", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-wrench" };
+                if (text.includes("tidak ada")) return { id: "f2", label: "Tidak Ada Informasi", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-triangle-exclamation" };
+                if (text.includes("baik") || text.includes("ada")) return { id: "f3", label: "Ada, Kondisi Baik", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
+            } else if (mode === 'G') {
+                text = (item.kondisiG || "").toLowerCase();
+                if (text.includes("berbahaya")) return { id: "g1", label: "Berbahaya Untuk Berhenti", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-bus-simple" }; 
+                if (text.includes("kriminalitas") || text.includes("penerangan")) return { id: "g2", label: "Potensi Kriminalitas", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-user-secret" }; 
+                if (text.includes("bocor") || text.includes("pinggir")) return { id: "g3", label: "Perlu Halte & Petugas", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-id-card" }; 
+                if (text.includes("aman") || text.includes("mudah")) return { id: "g4", label: "Aman & Ramah Pelanggan", bg: "bg-green-500", text: "text-white", hex: "#22c55e", icon: "fa-check" };
             }
             return { id: "unk", label: "Data Tidak Spesifik", bg: "bg-gray-300", text: "text-gray-700", hex: "#d1d5db", icon: "fa-circle-question" };
         }
@@ -403,13 +410,11 @@
         function toggleChart() { const p = document.getElementById('chart-panel-content'), b = document.getElementById('show-chart-btn'); p.classList.toggle('hidden'); b.classList.toggle('hidden'); }
         window.addEventListener('resize', () => { if(map) map.invalidateSize(); });
 
-        // =========================================================================
-        // PERFORMA MAKSIMAL: MENGGUNAKAN DEBOUNCE UNTUK INPUT DAN BULK ADD LAYER
-        // =========================================================================
+        // DEBOUNCE UNTUK PERFORMA KILAT SAAT MENGETIK
         let debounceTimer;
         function onSearchInput() {
             clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(processAndRenderLayers, 300); // Tunggu 300ms setelah user berhenti mengetik
+            debounceTimer = setTimeout(processAndRenderLayers, 300);
         }
 
         function processAndRenderLayers() {
@@ -445,7 +450,7 @@
                         
                         const marker = L.marker([item.lat, item.lng], { icon: markerIcon, customBg: sym.bg, customText: sym.text });
                         marker.bindPopup(() => createPopupContent(item, sym), { className: 'custom-popup', itemData: item });
-                        markersToBulkAdd.push(marker); // Tampung dulu, jangan langsung di-render
+                        markersToBulkAdd.push(marker);
 
                         aggregateDataHierarchy(grupKab, item.kabupaten, item, sym.bg);
                         aggregateDataHierarchy(grupKec, item.kecamatan, item, sym.bg);
@@ -454,7 +459,7 @@
                 }
             });
 
-            // BULK INSERT (Cara paling cepat untuk merender ribuan titik)
+            // BULK INSERT (Render super cepat tanpa lag)
             layerTitikDetil.addLayers(markersToBulkAdd);
 
             renderSemanticLayer(layerAdminKab, grupKab, "Kabupaten / Kota", "h-11 md:h-12", "15px", 11); 
@@ -495,7 +500,7 @@
                 const html = buildStackedBarHTML(grp.colors, grp.count, heightCls, fontCls);
                 const semanticMarker = L.marker([finalLat, finalLng], { icon: L.divIcon({ html: html, className: '', iconSize: L.point(80,40), iconAnchor: [40,20] }) });
                 
-                // EVENT KLIK KLASTER UNTUK EFEK ZOOM-IN INTERAKTIF
+                // Animasi terbang ketika klaster wilayah diklik
                 semanticMarker.on('click', () => {
                     map.flyTo([finalLat, finalLng], targetZoomToFly + 1, { duration: 0.6 });
                 });
