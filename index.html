@@ -64,7 +64,7 @@
                 <p class="text-[8px] md:text-xs text-blue-200 font-bold tracking-widest uppercase opacity-90 truncate">Layanan Mikrotrans dan Non-BRT</p>
             </div>
         </div>
-        <div id="loading-badge" class="px-2 md:px-5 py-1 md:py-2 text-[9px] md:text-xs bg-tjorange text-tjblue font-bold rounded-full animate-pulse shadow-md flex items-center shrink-0">
+        <div id="loading-badge" class="px-2 md:px-5 py-1 md:py-2 text-[9px] md:text-xs bg-tjorange text-tjblue font-bold rounded-full shadow-md flex items-center shrink-0">
             <i class="fa-solid fa-satellite-dish mr-1 md:mr-2 animate-spin"></i> <span class="hidden md:inline">Mensinkronisasi Data...</span><span class="inline md:hidden">Sync...</span>
         </div>
     </header>
@@ -153,7 +153,7 @@
         </main>
     </div>
 
-    <!-- MODAL EXECUTIVE SUMMARY YANG LEBIH BESAR & INFRASTRUKTUR-FOCUSED -->
+    <!-- MODAL EXECUTIVE SUMMARY -->
     <div id="summary-modal" class="fixed inset-0 z-[2000] hidden flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300 opacity-0">
         <div class="bg-gray-50 w-11/12 md:w-5/6 lg:w-4/5 xl:w-3/4 max-h-[95vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden transform scale-95 transition-transform duration-300" id="summary-modal-content">
             <div class="bg-gradient-to-r from-tjblue to-blue-900 px-6 py-4 flex justify-between items-center text-white shrink-0 shadow-md">
@@ -162,15 +162,12 @@
             </div>
             
             <div class="p-4 md:p-6 overflow-y-auto flex-1 space-y-6 font-['PT_Sans']">
-                <!-- Highlight Cards (Fokus pada Data Infrastruktur) -->
-                <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+                
+                <!-- GRID DIPERBARUI MENJADI 5 KOLOM (DENGAN MENGHAPUS AREA TUNGGU NYAMAN) -->
+                <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-b-4 border-b-tjblue">
                         <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Total Bus Stop</p>
                         <p class="text-2xl md:text-3xl font-black text-tjblue" id="sum-total-busstop">0</p>
-                    </div>
-                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-b-4 border-b-green-500">
-                        <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Area Tunggu Nyaman</p>
-                        <p class="text-2xl md:text-3xl font-black text-green-600" id="sum-ramah">0</p>
                     </div>
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-b-4 border-b-red-600">
                         <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Tidak Tersedia</p>
@@ -185,19 +182,18 @@
                         <p class="text-2xl md:text-3xl font-black text-red-700" id="sum-bahaya">0</p>
                     </div>
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-b-4 border-b-orange-500">
-                        <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Rawan Kebocoran</p>
+                        <!-- LABEL DIUBAH MENJADI RAWAN KEBOCORAN PELANGGAN -->
+                        <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Rawan Kebocoran Pelanggan</p>
                         <p class="text-2xl md:text-3xl font-black text-orange-600" id="sum-bocor">0</p>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    <!-- Top 5 Chart: Kelurahan Kritis Blank Spot -->
                     <div class="md:col-span-7 bg-white p-5 rounded-xl shadow-sm border border-gray-100">
                         <h4 class="text-xs md:text-sm font-bold text-tjblue uppercase tracking-wide mb-4"><i class="fa-solid fa-chart-bar mr-2"></i>5 Kelurahan Bus Stop 'Tidak Ada' Terbanyak</h4>
                         <div class="relative w-full h-56"><canvas id="sumChartKel"></canvas></div>
                     </div>
                     
-                    <!-- Urgent Actions Mismatch -->
                     <div class="md:col-span-5 bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
                         <h4 class="text-xs md:text-sm font-bold text-tjblue uppercase tracking-wide mb-4"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Status Kritis Matriks</h4>
                         <div class="space-y-4">
@@ -223,6 +219,7 @@
 
         let map, allData = [];
         let currentChart = null, activeLegendFilter = null; 
+        let globalAvgDemand = 0; 
         
         let boundaryData = { kabupaten: null, kecamatan: null, kelurahan: null };
         let polyCenters = { KAB: {}, KEC: {}, KEL: {} }; 
@@ -374,10 +371,6 @@
             return s.replace(/KECAMATAN\s|KEC\.\s/ig, '').replace(/KELURAHAN\s|KEL\.\s|DESA\s/ig, '').trim();
         }
 
-        // =========================================================================
-        // GET SYMBOLOGY KEMBALI MENGGUNAKAN LABEL DAN ICON ASLI
-        // MATRIKS PRIORITAS DIKUNCI HANYA UNTUK 4 KONDISI SPESIFIK
-        // =========================================================================
         function getSymbology(item, mode) {
             if (mode === 'PRIORITAS') {
                 let e = (item.kondisiE || "").toLowerCase();
@@ -419,51 +412,61 @@
             return { id: "unk", label: "Data Tidak Spesifik", bg: "bg-gray-300", text: "text-gray-700", hex: "#d1d5db", icon: "fa-circle-question" };
         }
 
+        // =========================================================================
+        // PERFORMA KILAT: PARALLEL FETCHING DATA API & GEOJSON (NO DOUBLE RENDER)
+        // =========================================================================
         window.addEventListener('DOMContentLoaded', () => {
-            fetch(API_URL).then(res => { if (!res.ok) throw new Error("API Google Script menolak koneksi."); return res.json(); })
-                .then(data => {
-                    if(data.error) { alert("Error database: " + data.error); return; }
-                    allData = data;
-                    document.getElementById('loading-badge').classList.add('hidden');
-                    populateFilterDropdowns(); 
-                    loadGeoJsonLayersLazy();
-                }).catch(err => { 
-                    alert("GAGAL MENSINKRONKAN DATA SPREADSHEET:\n" + err.message); 
-                    document.getElementById('loading-badge').classList.add('hidden'); 
-                });
+            const pullFile = (name) => fetch(name).then(r => r.ok ? r.json() : null).catch(() => null);
+
+            // Fetch semua aset secara bersamaan agar tidak tunggu-tungguan
+            Promise.all([
+                fetch(API_URL).then(res => { if (!res.ok) throw new Error("API Google Script menolak koneksi."); return res.json(); }),
+                pullFile('Jakarta_Kabupaten_Kota.geojson'),
+                pullFile('Jakarta_Kecamatan.geojson'),
+                pullFile('Jakarta_Desa.geojson'),
+                pullFile('Jakarta_Desa_Line.geojson'),
+                pullFile('laka_pasif.geojson')
+            ]).then(([apiData, shpKab, shpKec, shpKel, shpKelGaris, lakaData]) => {
+                if(apiData.error) { alert("Error database: " + apiData.error); return; }
+                allData = apiData;
+                
+                let totalD = 0, countD = 0;
+                allData.forEach(d => { if(d.avg_pelanggan > 0) { totalD += d.avg_pelanggan; countD++; } });
+                globalAvgDemand = countD > 0 ? (totalD / countD) : 0;
+
+                const tempLayer = L.geoJSON(null);
+                if(shpKab) {
+                    boundaryData.kabupaten = shpKab;
+                    shpKab.features.forEach(f => { tempLayer.addData(f); polyCenters.KAB[normName(f.properties.WADMKK || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
+                    L.geoJSON(shpKab, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKK || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKab);
+                }
+                if(shpKec) {
+                    boundaryData.kecamatan = shpKec;
+                    shpKec.features.forEach(f => { tempLayer.addData(f); polyCenters.KEC[normName(f.properties.WADMKC || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
+                    L.geoJSON(shpKec, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKC || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKec);
+                }
+                if(shpKel) {
+                    boundaryData.kelurahan = shpKel;
+                    shpKel.features.forEach(f => { tempLayer.addData(f); polyCenters.KEL[normName(f.properties.WADMKD || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
+                    L.geoJSON(shpKel, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKD || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKel);
+                }
+                if(shpKelGaris) L.geoJSON(shpKelGaris, { style: { color: "#06367c", weight: 1.5, opacity: 0.5, dashArray: '5, 5', fill: false } }).addTo(polyLayerLineDesa);
+
+                if(lakaData && lakaData.features) {
+                    let hPts = [];
+                    lakaData.features.forEach(f => { if(f.geometry && f.geometry.coordinates) hPts.push([f.geometry.coordinates[1], f.geometry.coordinates[0], 1]); });
+                    heatLayer.setLatLngs(hPts); 
+                }
+
+                document.getElementById('loading-badge').classList.add('hidden');
+                
+                // Memicu rendering SATU KALI saja setelah semua data siap
+                populateFilterDropdowns(); 
+            }).catch(err => { 
+                alert("GAGAL MENSINKRONKAN DATA SPREADSHEET:\n" + err.message); 
+                document.getElementById('loading-badge').classList.add('hidden'); 
+            });
         });
-
-        async function loadGeoJsonLayersLazy() {
-            async function pullFile(name) { try { const res = await fetch(name); return res.ok ? await res.json() : null; } catch(e) { return null; } }
-            const shpKab = await pullFile('Jakarta_Kabupaten_Kota.geojson'); const shpKec = await pullFile('Jakarta_Kecamatan.geojson');
-            const shpKel = await pullFile('Jakarta_Desa.geojson'); const shpKelGaris = await pullFile('Jakarta_Desa_Line.geojson');
-            const lakaData = await pullFile('laka_pasif.geojson');
-
-            const tempLayer = L.geoJSON(null);
-            if(shpKab) {
-                boundaryData.kabupaten = shpKab;
-                shpKab.features.forEach(f => { tempLayer.addData(f); polyCenters.KAB[normName(f.properties.WADMKK || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
-                L.geoJSON(shpKab, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKK || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKab);
-            }
-            if(shpKec) {
-                boundaryData.kecamatan = shpKec;
-                shpKec.features.forEach(f => { tempLayer.addData(f); polyCenters.KEC[normName(f.properties.WADMKC || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
-                L.geoJSON(shpKec, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKC || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKec);
-            }
-            if(shpKel) {
-                boundaryData.kelurahan = shpKel;
-                shpKel.features.forEach(f => { tempLayer.addData(f); polyCenters.KEL[normName(f.properties.WADMKD || f.properties.NAMOBJ)] = tempLayer.getBounds().getCenter(); tempLayer.clearLayers(); });
-                L.geoJSON(shpKel, { style: { color: "#06367c", weight: 2, opacity: 0.8, fillColor: "#06367c", fillOpacity: 0.1 }, onEachFeature: function(f, l) { l.bindTooltip(`<div class="text-[10px] md:text-[11px] font-bold text-tjblue uppercase tracking-widest bg-white/95 px-3 py-1.5 rounded shadow-lg border border-tjblue/20">${f.properties.WADMKD || f.properties.NAMOBJ || "Wilayah"}</div>`, { permanent: false, sticky: true }); } }).addTo(polyLayerKel);
-            }
-            if(shpKelGaris) L.geoJSON(shpKelGaris, { style: { color: "#06367c", weight: 1.5, opacity: 0.5, dashArray: '5, 5', fill: false } }).addTo(polyLayerLineDesa);
-
-            if(lakaData && lakaData.features) {
-                let hPts = [];
-                lakaData.features.forEach(f => { if(f.geometry && f.geometry.coordinates) hPts.push([f.geometry.coordinates[1], f.geometry.coordinates[0], 1]); });
-                heatLayer.setLatLngs(hPts); 
-            }
-            processAndRenderLayers();
-        }
 
         function populateFilterDropdowns() {
             const kabupatenSel = document.getElementById('filter-kab'); kabupatenSel.innerHTML = '<option value="ALL">Semua</option>';
@@ -676,9 +679,6 @@
                 </div>`;
         }
 
-        // =========================================================================
-        // DATA PROCESSING EXECUTIVE SUMMARY (FOKUS INFRASTRUKTUR BUS STOP)
-        // =========================================================================
         let sumChartObj = null;
         function openSummaryModal() {
             const modal = document.getElementById('summary-modal'), content = document.getElementById('summary-modal-content');
@@ -696,7 +696,7 @@
         function generateSummaryData() {
             let totalBusStop = allData.length;
             let bahayaCount = 0, bocorCount = 0, tidakIdealCount = 0, underCount = 0;
-            let tidakAdaCount = 0, vandalCount = 0, ramahCount = 0;
+            let tidakAdaCount = 0, vandalCount = 0;
             let kelTidakAda = {};
 
             allData.forEach(d => {
@@ -712,7 +712,6 @@
                 
                 if (isTidakAdaPlang) tidakAdaCount++;
                 if (f.includes("rusak") || f.includes("vandalisme")) vandalCount++;
-                if (g.includes("aman") || g.includes("mudah")) ramahCount++;
 
                 let kel = normName(d.kelurahan);
                 if (kel && kel !== "TANPA KELURAHAN") {
@@ -726,7 +725,6 @@
             document.getElementById('sum-bahaya').innerText = bahayaCount.toLocaleString('id-ID');
             document.getElementById('sum-bocor').innerText = bocorCount.toLocaleString('id-ID');
             document.getElementById('sum-vandal').innerText = vandalCount.toLocaleString('id-ID');
-            document.getElementById('sum-ramah').innerText = ramahCount.toLocaleString('id-ID');
             document.getElementById('sum-rusak').innerText = tidakIdealCount.toLocaleString('id-ID'); 
             document.getElementById('sum-under').innerText = underCount.toLocaleString('id-ID');
 
