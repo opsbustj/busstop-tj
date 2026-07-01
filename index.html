@@ -8,6 +8,7 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- Leaflet & Plugins -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
@@ -15,9 +16,11 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     
+    <!-- FontAwesome & Google Fonts -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
     
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     
@@ -72,8 +75,8 @@
             <div class="p-4 md:p-6 flex-1 overflow-y-auto overflow-x-hidden space-y-5 md:space-y-6 pb-24">
                 <div class="space-y-3">
                     <div>
-                        <label class="block text-[11px] md:text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5"><i class="fa-solid fa-magnifying-glass mr-1.5 text-tjblue"></i> Cari Nama Halte</label>
-                        <input type="text" id="search-input" oninput="onSearchInput()" placeholder="Ketik Nama Halte..." class="w-full text-sm px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-tjblue focus:ring-2 focus:ring-blue-100 outline-none transition shadow-inner">
+                        <label class="block text-[11px] md:text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5"><i class="fa-solid fa-magnifying-glass mr-1.5 text-tjblue"></i> Cari Nama Bus Stop</label>
+                        <input type="text" id="search-input" oninput="onSearchInput()" placeholder="Ketik Nama Bus Stop..." class="w-full text-sm px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-tjblue focus:ring-2 focus:ring-blue-100 outline-none transition shadow-inner">
                     </div>
                     <div>
                         <label class="block text-[11px] md:text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5"><i class="fa-solid fa-route mr-1.5 text-tjblue"></i> Cari Rute</label>
@@ -105,7 +108,7 @@
                         <option value="E">Ketersediaan Bus Stop</option>
                         <option value="F">Ketersediaan Papan Informasi Rute</option>
                         <option value="G">Kondisi Tempat Tunggu Pelanggan</option>
-                        <option value="PRIORITAS" class="font-bold text-red-600">🔥 Matriks Prioritas Intervensi</option>
+                        <option value="PRIORITAS" class="font-bold text-red-600">Matriks Prioritas Intervensi</option>
                     </select>
                 </div>
 
@@ -118,6 +121,7 @@
                 </div>
             </div>
 
+            <!-- TOMBOL EXECUTIVE SUMMARY -->
             <div class="absolute bottom-0 left-0 w-full p-4 border-t border-gray-200 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
                 <button onclick="openSummaryModal()" class="w-full bg-gradient-to-r from-tjblue to-blue-800 hover:from-blue-800 hover:to-tjblue text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-transform hover:scale-[1.02] flex justify-center items-center gap-2 group">
                     <i class="fa-solid fa-chart-line group-hover:animate-bounce text-tjorange"></i>
@@ -149,61 +153,71 @@
         </main>
     </div>
 
+    <!-- MODAL EXECUTIVE SUMMARY YANG LEBIH BESAR & INFRASTRUKTUR-FOCUSED -->
     <div id="summary-modal" class="fixed inset-0 z-[2000] hidden flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300 opacity-0">
-        <div class="bg-white w-11/12 md:w-3/4 lg:w-3/5 max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden transform scale-95 transition-transform duration-300" id="summary-modal-content">
+        <div class="bg-gray-50 w-11/12 md:w-5/6 lg:w-4/5 xl:w-3/4 max-h-[95vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden transform scale-95 transition-transform duration-300" id="summary-modal-content">
             <div class="bg-gradient-to-r from-tjblue to-blue-900 px-6 py-4 flex justify-between items-center text-white shrink-0 shadow-md">
-                <h2 class="text-sm md:text-lg font-bold uppercase tracking-widest flex items-center"><i class="fa-solid fa-building-user mr-3 text-tjorange text-xl"></i> Overview Manajemen</h2>
+                <h2 class="text-sm md:text-xl font-bold uppercase tracking-widest flex items-center"><i class="fa-solid fa-chart-line mr-3 text-tjorange text-xl"></i> Executive Summary</h2>
                 <button onclick="closeSummaryModal()" class="text-white hover:text-red-400 transition"><i class="fa-solid fa-xmark text-2xl"></i></button>
             </div>
             
-            <div class="p-6 overflow-y-auto flex-1 bg-gray-50 space-y-6 font-['PT_Sans']">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div class="bg-white p-4 rounded-xl shadow border border-gray-100 border-l-4 border-l-tjblue">
-                        <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Total Infrastruktur</p>
-                        <p class="text-2xl md:text-3xl font-black text-tjblue" id="sum-total-halte">0</p>
-                        <p class="text-[9px] text-gray-400 mt-1">Bus Stop Terdata</p>
+            <div class="p-4 md:p-6 overflow-y-auto flex-1 space-y-6 font-['PT_Sans']">
+                <!-- Highlight Cards (Fokus pada Data Infrastruktur) -->
+                <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-b-4 border-b-tjblue">
+                        <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Total Bus Stop</p>
+                        <p class="text-2xl md:text-3xl font-black text-tjblue" id="sum-total-busstop">0</p>
                     </div>
-                    <div class="bg-white p-4 rounded-xl shadow border border-gray-100 border-l-4 border-l-green-500">
-                        <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Total Pelanggan</p>
-                        <p class="text-2xl md:text-3xl font-black text-green-600" id="sum-total-pax">0</p>
-                        <p class="text-[9px] text-gray-400 mt-1">Rata-rata Org/Hari</p>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-b-4 border-b-green-500">
+                        <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Area Tunggu Nyaman</p>
+                        <p class="text-2xl md:text-3xl font-black text-green-600" id="sum-ramah">0</p>
                     </div>
-                    <div class="bg-white p-4 rounded-xl shadow border border-gray-100 border-l-4 border-l-red-600 animate-pulse">
-                        <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Zona Berbahaya</p>
-                        <p class="text-2xl md:text-3xl font-black text-red-600" id="sum-bahaya">0</p>
-                        <p class="text-[9px] text-gray-400 mt-1">Titik Rawan Kecelakaan</p>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-b-4 border-b-red-600">
+                        <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Tidak Tersedia</p>
+                        <p class="text-2xl md:text-3xl font-black text-red-600" id="sum-tidak-ada">0</p>
                     </div>
-                    <div class="bg-white p-4 rounded-xl shadow border border-gray-100 border-l-4 border-l-orange-500">
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-b-4 border-b-yellow-400">
+                        <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Papan Rute Vandal/Rusak</p>
+                        <p class="text-2xl md:text-3xl font-black text-yellow-600" id="sum-vandal">0</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-b-4 border-b-red-800 bg-red-50/50 animate-pulse">
+                        <p class="text-[10px] text-red-800 font-bold uppercase tracking-wider mb-1">Zona Berbahaya</p>
+                        <p class="text-2xl md:text-3xl font-black text-red-700" id="sum-bahaya">0</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-b-4 border-b-orange-500">
                         <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Rawan Kebocoran</p>
                         <p class="text-2xl md:text-3xl font-black text-orange-600" id="sum-bocor">0</p>
-                        <p class="text-[9px] text-gray-400 mt-1">Titik Butuh Petugas</p>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-white p-5 rounded-xl shadow border border-gray-100">
-                        <h4 class="text-xs font-bold text-tjblue uppercase tracking-wide mb-4"><i class="fa-solid fa-chart-column mr-2"></i>5 Kecamatan Demand Tertinggi</h4>
-                        <div class="relative w-full h-48"><canvas id="sumChartKec"></canvas></div>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                    <!-- Top 5 Chart: Kelurahan Kritis Blank Spot -->
+                    <div class="md:col-span-7 bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                        <h4 class="text-xs md:text-sm font-bold text-tjblue uppercase tracking-wide mb-4"><i class="fa-solid fa-chart-bar mr-2"></i>5 Kelurahan Bus Stop 'Tidak Ada' Terbanyak</h4>
+                        <div class="relative w-full h-56"><canvas id="sumChartKel"></canvas></div>
                     </div>
-                    <div class="bg-white p-5 rounded-xl shadow border border-gray-100 flex flex-col justify-center">
-                        <h4 class="text-xs font-bold text-tjblue uppercase tracking-wide mb-4"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Status Kritis Infrastruktur</h4>
+                    
+                    <!-- Urgent Actions Mismatch -->
+                    <div class="md:col-span-5 bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
+                        <h4 class="text-xs md:text-sm font-bold text-tjblue uppercase tracking-wide mb-4"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Status Kritis Matriks</h4>
                         <div class="space-y-4">
-                            <div class="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-100">
-                                <span class="text-xs font-bold text-red-800">Halte Rusak / Tidak Ada</span>
-                                <span class="text-lg font-black text-red-600 bg-white px-3 py-1 rounded shadow-sm" id="sum-rusak">0</span>
+                            <div class="flex items-center justify-between p-3.5 bg-red-50 rounded-lg border border-red-100">
+                                <span class="text-[11px] md:text-xs font-bold text-red-800 uppercase tracking-wide">Bus Stop Tidak Ideal <span class="block text-[9px] text-red-600/70 capitalize mt-0.5 font-normal">(Rusak / Terhalang / Tidak Ada)</span></span>
+                                <span class="text-xl font-black text-red-600 bg-white px-3 py-1 rounded-md shadow-sm" id="sum-rusak">0</span>
                             </div>
-                            <div class="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                <span class="text-xs font-bold text-blue-800">Underutilized (Sepi Penumpang)</span>
-                                <span class="text-lg font-black text-blue-600 bg-white px-3 py-1 rounded shadow-sm" id="sum-under">0</span>
+                            <div class="flex items-center justify-between p-3.5 bg-purple-50 rounded-lg border border-purple-100">
+                                <span class="text-[11px] md:text-xs font-bold text-purple-800 uppercase tracking-wide">Underutilized <span class="block text-[9px] text-purple-600/70 capitalize mt-0.5 font-normal">(Fasilitas Ada Tapi Penumpang &lt; 3)</span></span>
+                                <span class="text-xl font-black text-purple-600 bg-white px-3 py-1 rounded-md shadow-sm" id="sum-under">0</span>
                             </div>
                         </div>
-                        <p class="text-[10px] text-gray-400 mt-4 italic text-center">*Gunakan mode "Matriks Prioritas Intervensi" di peta untuk melokalisasi area perbaikan secara spesifik.</p>
+                        <p class="text-[10px] text-gray-400 mt-5 italic text-center leading-tight">*Gunakan dropdown <strong class="text-tjblue">Matriks Prioritas Intervensi</strong> pada menu peta untuk melihat lokalisasi dan detail intervensi spesifik.</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- SCRIPT DASHBOARD -->
     <script>
         const API_URL = "https://script.google.com/macros/s/AKfycbzzwZ-d5NWrwZVtsl4crND4bAeD6NMGWN5Yav8gen7UuadhlqY20YcZpaGmsPvT-vCj/exec";
 
@@ -225,7 +239,6 @@
             'bg-yellow-400': '#facc15', 'bg-green-500': '#22c55e', 'bg-blue-500': '#3b82f6', 'bg-purple-500': '#a855f7', 'bg-gray-300': '#d1d5db'
         };
 
-        // BUBBLE STACKED BAR CHART (KAPSUL MEMANJANG, TANPA STROKE, ANGKA PUTIH DROP SHADOW)
         function buildStackedBarHTML(colorsCountObj, totalCount, heightCls, fontSize) {
             let gradientStr = ""; let currentPercentage = 0;
             let sortedColors = Object.entries(colorsCountObj).sort((a, b) => b[1] - a[1]);
@@ -362,7 +375,8 @@
         }
 
         // =========================================================================
-        // LOGIKA BARU: MATRIKS PRIORITAS INTERVENSI EKSKLUSIF (SANGAT KETAT)
+        // GET SYMBOLOGY KEMBALI MENGGUNAKAN LABEL DAN ICON ASLI
+        // MATRIKS PRIORITAS DIKUNCI HANYA UNTUK 4 KONDISI SPESIFIK
         // =========================================================================
         function getSymbology(item, mode) {
             if (mode === 'PRIORITAS') {
@@ -375,12 +389,11 @@
                 let isBerbahaya = g.includes("berbahaya");
                 let isBocor = g.includes("bocor"); 
 
-                if (isAdaPlang && pax < 3) return { id: "p1", label: "Underutilized (Ada Plang, Pelanggan < 3)", bg: "bg-purple-500", text: "text-white", hex: "#a855f7", icon: "fa-arrow-trend-down" };
-                if (isTidakAdaPlang && pax > 20) return { id: "p2", label: "Add Bus Stop (Tidak Ada Plang, Pelanggan > 20)", bg: "bg-blue-500", text: "text-white", hex: "#3b82f6", icon: "fa-plus" };
-                if (isBerbahaya && pax < 5) return { id: "p3", label: "Relokasi/Cabut (Berbahaya, Pelanggan < 5)", bg: "bg-red-600", text: "text-white", hex: "#dc2626", icon: "fa-ban" };
-                if (isBocor && pax > 10) return { id: "p4", label: "Tambah Petugas/Tap (Rawan Bocor, Pelanggan > 10)", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-user-shield" };
+                if (isAdaPlang && pax < 3) return { id: "p1", label: "Underutilized", bg: "bg-purple-500", text: "text-white", hex: "#a855f7", icon: "fa-arrow-trend-down" };
+                if (isTidakAdaPlang && pax > 20) return { id: "p2", label: "Add Bus Stop", bg: "bg-blue-500", text: "text-white", hex: "#3b82f6", icon: "fa-plus" };
+                if (isBerbahaya && pax < 5) return { id: "p3", label: "Relokasi / Cabut", bg: "bg-red-600", text: "text-white", hex: "#dc2626", icon: "fa-ban" };
+                if (isBocor && pax > 10) return { id: "p4", label: "Tambah Petugas / Tap", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-user-shield" };
                 
-                // JIKA TIDAK MASUK 4 KRITERIA DI ATAS, ABAIKAN TITIK INI (HILANG DARI PETA)
                 return null; 
             }
 
@@ -501,8 +514,6 @@
 
                 if (matchS && matchR && matchKab && matchKec && matchKel) {
                     const sym = getSymbology(item, viewMode);
-                    
-                    // PENTING: Lompati jika tidak lolos seleksi matriks prioritas!
                     if (!sym) return; 
 
                     countTotalSearched++;
@@ -666,7 +677,7 @@
         }
 
         // =========================================================================
-        // LOGIKA EXECUTIVE SUMMARY (KHUSUS C-LEVEL)
+        // DATA PROCESSING EXECUTIVE SUMMARY (FOKUS INFRASTRUKTUR BUS STOP)
         // =========================================================================
         let sumChartObj = null;
         function openSummaryModal() {
@@ -683,49 +694,59 @@
         }
 
         function generateSummaryData() {
-            let totalHalte = allData.length, totalPelanggan = 0, bahayaCount = 0, bocorCount = 0, rusakCount = 0, underCount = 0;
-            let paxPerKec = {};
+            let totalBusStop = allData.length;
+            let bahayaCount = 0, bocorCount = 0, tidakIdealCount = 0, underCount = 0;
+            let tidakAdaCount = 0, vandalCount = 0, ramahCount = 0;
+            let kelTidakAda = {};
 
             allData.forEach(d => {
-                let pax = d.avg_pelanggan || 0; totalPelanggan += pax;
-                let e = (d.kondisiE || "").toLowerCase(), g = (d.kondisiG || "").toLowerCase();
-                let isTidakAdaPlang = e.includes("tidak ada"), isAdaPlang = !isTidakAdaPlang;
+                let pax = d.avg_pelanggan || 0;
+                let e = (d.kondisiE || "").toLowerCase(), f = (d.kondisiF || "").toLowerCase(), g = (d.kondisiG || "").toLowerCase();
+                let isTidakAdaPlang = e.includes("tidak ada");
+                let isAdaPlang = !isTidakAdaPlang;
                 
                 if (g.includes("berbahaya")) bahayaCount++;
                 if (g.includes("bocor")) bocorCount++;
-                if (isTidakAdaPlang || e.includes("rusak") || e.includes("terhalang")) rusakCount++;
-                
-                // Menghitung Underutilized (Ada plang tapi pelanggan kurang dari 3)
+                if (isTidakAdaPlang || e.includes("rusak") || e.includes("terhalang")) tidakIdealCount++;
                 if (isAdaPlang && pax < 3) underCount++;
+                
+                if (isTidakAdaPlang) tidakAdaCount++;
+                if (f.includes("rusak") || f.includes("vandalisme")) vandalCount++;
+                if (g.includes("aman") || g.includes("mudah")) ramahCount++;
 
-                let kec = normName(d.kecamatan);
-                if (kec && kec !== "TANPA KECAMATAN") paxPerKec[kec] = (paxPerKec[kec] || 0) + pax;
+                let kel = normName(d.kelurahan);
+                if (kel && kel !== "TANPA KELURAHAN") {
+                    if (!kelTidakAda[kel]) kelTidakAda[kel] = 0;
+                    if (isTidakAdaPlang) kelTidakAda[kel]++;
+                }
             });
 
-            document.getElementById('sum-total-halte').innerText = totalHalte.toLocaleString('id-ID');
-            document.getElementById('sum-total-pax').innerText = Math.round(totalPelanggan).toLocaleString('id-ID');
+            document.getElementById('sum-total-busstop').innerText = totalBusStop.toLocaleString('id-ID');
+            document.getElementById('sum-tidak-ada').innerText = tidakAdaCount.toLocaleString('id-ID');
             document.getElementById('sum-bahaya').innerText = bahayaCount.toLocaleString('id-ID');
             document.getElementById('sum-bocor').innerText = bocorCount.toLocaleString('id-ID');
-            document.getElementById('sum-rusak').innerText = rusakCount.toLocaleString('id-ID');
+            document.getElementById('sum-vandal').innerText = vandalCount.toLocaleString('id-ID');
+            document.getElementById('sum-ramah').innerText = ramahCount.toLocaleString('id-ID');
+            document.getElementById('sum-rusak').innerText = tidakIdealCount.toLocaleString('id-ID'); 
             document.getElementById('sum-under').innerText = underCount.toLocaleString('id-ID');
 
-            let topKec = Object.entries(paxPerKec).sort((a, b) => b[1] - a[1]).slice(0, 5);
-            const ctx = document.getElementById('sumChartKec').getContext('2d');
+            let topKel = Object.entries(kelTidakAda).sort((a, b) => b[1] - a[1]).slice(0, 5);
+            const ctx = document.getElementById('sumChartKel').getContext('2d');
             if (sumChartObj) sumChartObj.destroy();
 
             sumChartObj = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: topKec.map(k => k[0]),
+                    labels: topKel.map(k => k[0]),
                     datasets: [{
-                        label: 'Avg Pelanggan',
-                        data: topKec.map(k => k[1]),
-                        backgroundColor: '#F2A900', borderRadius: 4
+                        label: "Jumlah Bus Stop 'Tidak Ada'",
+                        data: topKel.map(k => k[1]),
+                        backgroundColor: '#ef4444', borderRadius: 4
                     }]
                 },
                 options: {
                     indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false }, datalabels: { align: 'end', anchor: 'end', color: '#06367c', font: {weight: 'bold', size: 10}, formatter: Math.round } },
+                    plugins: { legend: { display: false }, datalabels: { align: 'end', anchor: 'end', color: '#dc2626', font: {weight: 'bold', size: 10} } },
                     scales: { x: { display: false }, y: { ticks: { font: {size: 10, weight: 'bold'}, color: '#4b5563' } } }
                 }
             });
