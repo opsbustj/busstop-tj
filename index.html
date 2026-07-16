@@ -57,6 +57,10 @@
             100% { transform: translate(-50%, 0) scale(1); opacity: 1; }
         }
         .animate-pop-up { animation: popUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        /* Custom Scrollbar for list */
+        .custom-list-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-list-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
     </style>
 </head>
 <body class="flex flex-col h-screen overflow-hidden">
@@ -118,7 +122,7 @@
                     </select>
                 </div>
 
-                <div class="pt-1 md:pt-2">
+                <div class="pt-1 md:pt-2 border-t border-gray-100 mt-2">
                     <div class="flex justify-between items-end mb-3 border-b border-gray-200 pb-2">
                         <h3 class="text-[11px] md:text-xs font-bold text-gray-500 uppercase"><i class="fa-solid fa-list-check mr-1"></i> Keterangan</h3>
                         <span class="text-[10px] md:text-[11px] font-bold text-tjblue bg-blue-50 px-2.5 py-1 rounded">Total: <span id="score-total">0</span> Titik</span>
@@ -127,6 +131,7 @@
                 </div>
             </div>
 
+            <!-- TOMBOL EXECUTIVE SUMMARY -->
             <div class="absolute bottom-0 left-0 w-full p-4 border-t border-gray-200 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
                 <button onclick="openSummaryModal()" class="w-full bg-gradient-to-r from-tjblue to-blue-800 hover:from-blue-800 hover:to-tjblue text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-transform hover:scale-[1.02] flex justify-center items-center gap-2 group">
                     <i class="fa-solid fa-chart-line group-hover:animate-bounce text-tjorange"></i>
@@ -145,9 +150,9 @@
             
             <div id="map" class="flex-1 w-full h-full relative"></div>
 
-            <!-- FLOATING SMART PROXIMITY ASSISTANT BUBBLE -->
-            <div id="insight-panel" class="hidden absolute bottom-6 md:bottom-10 left-1/2 transform -translate-x-1/2 z-[1000] w-[90%] md:w-auto md:min-w-[400px] max-w-lg bg-white/95 backdrop-blur-md border border-gray-200 border-t-4 border-t-indigo-600 p-4 rounded-2xl shadow-2xl animate-pop-up">
-                <div class="flex justify-between items-center mb-2">
+            <!-- FLOATING SMART PROXIMITY ASSISTANT BUBBLE DENGAN LIST -->
+            <div id="insight-panel" class="hidden absolute bottom-6 md:bottom-10 left-1/2 transform -translate-x-1/2 z-[1000] w-[90%] md:w-auto md:min-w-[420px] max-w-lg bg-white/95 backdrop-blur-md border border-gray-200 border-t-4 border-t-indigo-600 p-4 rounded-2xl shadow-2xl animate-pop-up flex flex-col">
+                <div class="flex justify-between items-center mb-2 shrink-0">
                     <h4 class="text-[11px] md:text-xs font-bold text-indigo-800 uppercase tracking-wide flex items-center">
                         <div class="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center mr-2 shadow-inner">
                             <i class="fa-solid fa-robot text-indigo-600 animate-pulse"></i>
@@ -156,7 +161,12 @@
                     </h4>
                     <button onclick="disableInspectionMode()" class="text-gray-400 hover:text-red-500 hover:bg-red-50 transition bg-gray-100 rounded-full w-6 h-6 flex items-center justify-center shadow-sm"><i class="fa-solid fa-xmark text-sm"></i></button>
                 </div>
-                <p class="text-[11px] md:text-xs text-gray-700 leading-relaxed pl-1" id="insight-text"></p>
+                <div class="text-[11px] md:text-xs text-gray-700 leading-relaxed pl-1 shrink-0" id="insight-text"></div>
+                
+                <!-- CONTAINER LIST NAMA BUS STOP -->
+                <div id="insight-list-container" class="hidden mt-3 pt-2 border-t border-indigo-100 max-h-32 overflow-y-auto custom-list-scroll px-1">
+                    <!-- List dynamically injected here -->
+                </div>
             </div>
             
             <div class="hidden md:block absolute top-5 right-5 z-[1000]">
@@ -182,6 +192,7 @@
             </div>
             
             <div class="p-4 md:p-6 overflow-y-auto flex-1 space-y-6 font-['PT_Sans']">
+                <!-- GRID 5 KOLOM -->
                 <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-b-4 border-b-tjblue">
                         <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Total Bus Stop</p>
@@ -248,7 +259,8 @@
         // VARIABEL PROXIMITY INSPECTION
         let inspectionCenter = null;
         let bufferCircle = null;
-        let layerInspection = L.layerGroup(); // Layer Khusus Titik Non-Klaster
+        let layerInspection = L.layerGroup(); 
+        let inspectionFilter = 'all'; // State untuk interaktivitas tombol insight
 
         let polyLayerKab = L.layerGroup(); let polyLayerKec = L.layerGroup(); let polyLayerKel = L.layerGroup(); let polyLayerLineDesa = L.layerGroup(); 
         let layerAdminKab = L.layerGroup(); let layerAdminKec = L.layerGroup(); let layerAdminKel = L.layerGroup();
@@ -268,11 +280,14 @@
 
         window.enableInspectionMode = function(lat, lng, nama) {
             inspectionCenter = { lat: lat, lng: lng, name: nama };
+            inspectionFilter = 'all'; // Reset ke tampilkan semua saat mulai baru
+            
             document.getElementById('search-input').value = '';
             document.getElementById('route-input').value = '';
             document.getElementById('filter-kab').value = 'ALL';
             document.getElementById('filter-kec').innerHTML = '<option value="ALL">Semua</option>';
             document.getElementById('filter-kel').innerHTML = '<option value="ALL">Semua</option>';
+            document.getElementById('insight-list-container').classList.add('hidden');
             
             map.closePopup();
             map.flyTo([lat, lng], 15, { duration: 0.8 }); 
@@ -282,8 +297,16 @@
 
         window.disableInspectionMode = function() {
             inspectionCenter = null;
+            inspectionFilter = 'all';
             if(bufferCircle) { map.removeLayer(bufferCircle); bufferCircle = null; }
             document.getElementById('insight-panel').classList.add('hidden');
+            document.getElementById('insight-list-container').classList.add('hidden');
+            processAndRenderLayers();
+        };
+
+        // FUNGSI BARU UNTUK FILTER INTERAKTIF DI DALAM SMART PROXIMITY
+        window.filterProximity = function(type) {
+            inspectionFilter = type;
             processAndRenderLayers();
         };
 
@@ -421,9 +444,6 @@
             return s.replace(/KECAMATAN\s|KEC\.\s/ig, '').replace(/KELURAHAN\s|KEL\.\s|DESA\s/ig, '').trim();
         }
 
-        // =========================================================================
-        // SYMBOLOGY UNTUK INSPEKSI PROXIMITY KHUSUS YANG BERMASALAH (MUNCUL RAW)
-        // =========================================================================
         function getInspectionSymbology(item) {
             let e = (item.kondisiE || "").toLowerCase();
             let f = (item.kondisiF || "").toLowerCase();
@@ -562,11 +582,11 @@
             
             let markersToBulkAdd = []; 
             let inspectionMarkers = []; 
+            let inspectionNamesList = []; // Daftar nama untuk di-render ke UI list
 
             let insHilang = 0, insTerhalang = 0, insRusak = 0, insTidakAdaInfo = 0, insTotal = 0;
 
             allData.forEach(item => {
-                // LOGIKA EKSKLUSIF UNTUK ASISTEN PROXIMITY (BYPASS SEMUA FILTER PENCARIAN)
                 if (inspectionCenter) {
                     const dist = getDistance(inspectionCenter.lat, inspectionCenter.lng, item.lat, item.lng);
                     if (dist <= 1) {
@@ -578,30 +598,43 @@
                         let isRusak = e.includes("rusak") || f.includes("rusak") || f.includes("vandalisme");
                         let isTidakAdaInfo = f.includes("tidak ada") && !isHilang;
                         
-                        // HANYA MUNCULKAN BUS STOP YANG BERMASALAH/TIDAK AMAN DI DALAM RADIUS
+                        // Menghitung SEMUA bus stop bermasalah di radius, terlepas dari filter aktif (agar teks insight tidak berubah-ubah)
                         if (isHilang || isTerhalang || isRusak || isTidakAdaInfo) {
-                            insTotal++;
-                            if (isHilang) insHilang++;
-                            else if (isTerhalang) insTerhalang++;
-                            else if (isRusak) insRusak++;
-                            else if (isTidakAdaInfo) insTidakAdaInfo++;
-
-                            let sym = getInspectionSymbology(item);
-                            const htmlIcon = `<div class="w-8 h-8 rounded-full ${sym.bg} ${sym.text} border-2 border-white flex items-center justify-center shadow-xl hover:scale-125 transition-transform"><i class="fa-solid ${sym.icon} text-[13px]"></i></div>`;
-                            const markerIcon = L.divIcon({ html: htmlIcon, className: '', iconSize: L.point(32,32), iconAnchor: [16,16] });
+                            if (inspectionFilter === 'all') { // Hanya tambah counter jika tidak sedang mode drill-down
+                                insTotal++;
+                                if (isHilang) insHilang++;
+                                else if (isTerhalang) insTerhalang++;
+                                else if (isRusak) insRusak++;
+                                else if (isTidakAdaInfo) insTidakAdaInfo++;
+                            }
                             
-                            const marker = L.marker([item.lat, item.lng], { icon: markerIcon });
-                            let popupSym = getSymbology(item, 'E') || sym; 
-                            marker.bindPopup(() => createPopupContent(item, popupSym), { className: 'custom-popup', itemData: item });
-                            inspectionMarkers.push(marker);
+                            // LOGIKA FILTER DRILL-DOWN (Klik pada teks insight)
+                            let passesFilter = false;
+                            if (inspectionFilter === 'all') passesFilter = true;
+                            else if (inspectionFilter === 'hilang' && isHilang) passesFilter = true;
+                            else if (inspectionFilter === 'terhalang' && isTerhalang) passesFilter = true;
+                            else if (inspectionFilter === 'rusak' && isRusak) passesFilter = true;
+                            else if (inspectionFilter === 'tanpainfo' && isTidakAdaInfo) passesFilter = true;
+
+                            if (passesFilter) {
+                                let sym = getInspectionSymbology(item);
+                                const htmlIcon = `<div class="w-8 h-8 rounded-full ${sym.bg} ${sym.text} border-2 border-white flex items-center justify-center shadow-xl hover:scale-125 transition-transform"><i class="fa-solid ${sym.icon} text-[13px]"></i></div>`;
+                                const markerIcon = L.divIcon({ html: htmlIcon, className: '', iconSize: L.point(32,32), iconAnchor: [16,16] });
+                                
+                                const marker = L.marker([item.lat, item.lng], { icon: markerIcon });
+                                let popupSym = getSymbology(item, 'E') || sym; 
+                                marker.bindPopup(() => createPopupContent(item, popupSym), { className: 'custom-popup', itemData: item });
+                                inspectionMarkers.push(marker);
+                                
+                                // Simpan nama untuk ditampilkan di panel list bawah
+                                inspectionNamesList.push({name: item.nama, icon: sym.icon, color: sym.text, bg: sym.bg});
+                            }
                         }
                     }
-                    return; // Lewati pemrosesan normal jika dalam mode inspeksi
+                    return; 
                 }
 
-                // =========================================================
-                // LOGIKA NORMAL RENDERING (DILUAR MODE INSPEKSI PROXIMITY)
-                // =========================================================
+                // LOGIKA NORMAL DILUAR MODE INSPEKSI
                 const matchS = !searchVal || item.nama.toLowerCase().includes(searchVal);
                 const matchR = !routeVal || (item.rute && item.rute.toLowerCase().includes(routeVal)); 
                 const matchKab = kabVal === 'ALL' || (item.kabupaten && item.kabupaten.trim() === kabVal);
@@ -640,13 +673,46 @@
                     color: '#4f46e5', fillColor: '#4f46e5', fillOpacity: 0.08, radius: 1000, weight: 2, dashArray: '5, 5'
                 }).addTo(map);
 
-                let insightText = `Dalam radius <strong>1 km</strong> dari <strong>${inspectionCenter.name}</strong> terdapat <strong>${insTotal} Bus Stop bermasalah</strong>.`;
-                if (insTotal > 0) {
-                    insightText += `<br>Rincian: <strong class="text-red-600">${insHilang} hilang/tidak ada</strong>, <strong class="text-orange-500">${insTerhalang} terhalang</strong>, <strong class="text-yellow-600">${insRusak} rusak</strong>, dan <strong class="text-blue-500">${insTidakAdaInfo} tanpa info rute</strong>.`;
-                } else {
-                    insightText += `<br><span class="text-green-600 font-bold"><i class="fa-solid fa-check-circle mr-1"></i>Kondisi infrastruktur di radius ini sangat aman.</span>`;
+                // MEMBANGUN TEKS INSIGHT YANG INTERAKTIF (BISA DI-KLIK)
+                if (inspectionFilter === 'all') { // Hanya buat ulang string dasar jika mode 'all' agar nilainya tidak me-reset
+                    let insightText = `Dalam radius <strong>1 km</strong> dari <strong>${inspectionCenter.name}</strong> terdapat <strong>${insTotal} Bus Stop bermasalah</strong>.`;
+                    if (insTotal > 0) {
+                        insightText += `<br>Rincian: 
+                        <button onclick="filterProximity('hilang')" class="text-red-600 font-bold hover:underline cursor-pointer transition focus:outline-none">${insHilang} hilang/tidak ada</button>, 
+                        <button onclick="filterProximity('terhalang')" class="text-orange-500 font-bold hover:underline cursor-pointer transition focus:outline-none">${insTerhalang} terhalang</button>, 
+                        <button onclick="filterProximity('rusak')" class="text-yellow-600 font-bold hover:underline cursor-pointer transition focus:outline-none">${insRusak} rusak</button>, dan 
+                        <button onclick="filterProximity('tanpainfo')" class="text-blue-500 font-bold hover:underline cursor-pointer transition focus:outline-none">${insTidakAdaInfo} tanpa info rute</button>.`;
+                    } else {
+                        insightText += `<br><span class="text-green-600 font-bold"><i class="fa-solid fa-check-circle mr-1"></i>Kondisi infrastruktur di radius ini sangat aman.</span>`;
+                    }
+                    // Simpan sebagai text utama
+                    document.getElementById('insight-panel').setAttribute('data-base-text', insightText);
                 }
-                document.getElementById('insight-text').innerHTML = insightText;
+
+                // Tambahkan tombol Reset Filter jika sedang di mode Drill-down
+                let finalText = document.getElementById('insight-panel').getAttribute('data-base-text');
+                if (inspectionFilter !== 'all') {
+                    finalText += ` <br><button onclick="filterProximity('all')" class="mt-2 text-[9px] md:text-[10px] bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1.5 rounded-full font-bold transition shadow-sm border border-gray-300"><i class="fa-solid fa-rotate-left mr-1"></i>Tampilkan Semua Bus Stop (Reset)</button>`;
+                }
+                document.getElementById('insight-text').innerHTML = finalText;
+
+                // Render Daftar Nama Bus Stop di Bawah Insight
+                const listContainer = document.getElementById('insight-list-container');
+                if (inspectionFilter !== 'all' && inspectionNamesList.length > 0) {
+                    let listHtml = '<ul class="space-y-1.5">';
+                    inspectionNamesList.forEach(obj => {
+                        listHtml += `<li class="text-[10px] text-gray-700 flex items-center bg-white p-2 rounded shadow-sm border border-gray-100 font-bold hover:bg-indigo-50 transition cursor-default">
+                            <div class="w-5 h-5 rounded-full ${obj.bg} ${obj.color} flex items-center justify-center mr-2 shrink-0 shadow-inner text-[9px]"><i class="fa-solid ${obj.icon}"></i></div> 
+                            ${obj.name}
+                        </li>`;
+                    });
+                    listHtml += '</ul>';
+                    listContainer.innerHTML = listHtml;
+                    listContainer.classList.remove('hidden');
+                } else {
+                    listContainer.classList.add('hidden');
+                }
+
             } else {
                 layerTitikDetil.addLayers(markersToBulkAdd);
                 renderSemanticLayer(layerAdminKab, grupKab, "Kabupaten / Kota", "h-11 md:h-12", "15px", 11); 
@@ -768,7 +834,6 @@
 
             let trendIcon = item.avg_mei > item.avg_jan ? '<i class="fa-solid fa-arrow-trend-up text-green-500"></i>' : '<i class="fa-solid fa-arrow-trend-down text-red-500"></i>';
 
-            // TOMBOL INSPEKSI DI DALAM POPUP (HANYA MUNCUL JIKA TIDAK SEDANG DALAM MODE INSPEKSI)
             let btnInspeksi = '';
             if (!inspectionCenter) {
                 btnInspeksi = `<button onclick="enableInspectionMode(${item.lat}, ${item.lng}, '${item.nama.replace(/'/g, "\\'")}')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 text-[10px] uppercase tracking-widest transition flex justify-center items-center border-b border-indigo-500"><i class="fa-solid fa-satellite-dish mr-1.5"></i> Inspeksi Radius 1 KM</button>`;
