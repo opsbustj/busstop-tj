@@ -112,7 +112,16 @@
                     </select>
                 </div>
 
-                <div class="pt-1 md:pt-2">
+                <!-- WIDGET ASISTEN INSPEKSI (MUNCUL SAAT PROXIMITY AKTIF) -->
+                <div id="insight-panel" class="hidden bg-indigo-50 border border-indigo-200 border-l-4 border-l-indigo-600 p-3 rounded-lg shadow-sm relative animate-fade-in mt-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <h4 class="text-[11px] md:text-xs font-bold text-indigo-800 uppercase tracking-wide"><i class="fa-solid fa-robot mr-1.5"></i> Asisten Proximity</h4>
+                        <button onclick="disableInspectionMode()" class="text-indigo-400 hover:text-red-500 transition"><i class="fa-solid fa-xmark text-sm"></i></button>
+                    </div>
+                    <p class="text-[11px] text-gray-700 leading-relaxed" id="insight-text"></p>
+                </div>
+
+                <div class="pt-3 border-t border-gray-100 mt-3">
                     <div class="flex justify-between items-end mb-3 border-b border-gray-200 pb-2">
                         <h3 class="text-[11px] md:text-xs font-bold text-gray-500 uppercase"><i class="fa-solid fa-list-check mr-1"></i> Keterangan</h3>
                         <span class="text-[10px] md:text-[11px] font-bold text-tjblue bg-blue-50 px-2.5 py-1 rounded">Total: <span id="score-total">0</span> Titik</span>
@@ -162,8 +171,7 @@
             </div>
             
             <div class="p-4 md:p-6 overflow-y-auto flex-1 space-y-6 font-['PT_Sans']">
-                
-                <!-- GRID DIPERBARUI MENJADI 5 KOLOM (DENGAN MENGHAPUS AREA TUNGGU NYAMAN) -->
+                <!-- GRID DIPERBARUI MENJADI 5 KOLOM -->
                 <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-b-4 border-b-tjblue">
                         <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Total Bus Stop</p>
@@ -182,7 +190,6 @@
                         <p class="text-2xl md:text-3xl font-black text-red-700" id="sum-bahaya">0</p>
                     </div>
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-b-4 border-b-orange-500">
-                        <!-- LABEL DIUBAH MENJADI RAWAN KEBOCORAN PELANGGAN -->
                         <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Rawan Kebocoran Pelanggan</p>
                         <p class="text-2xl md:text-3xl font-black text-orange-600" id="sum-bocor">0</p>
                     </div>
@@ -227,6 +234,10 @@
         let heatLayer = L.heatLayer([], {radius: 20, blur: 15, maxZoom: 15, gradient: {0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red'}});
         let isBusStopVisible = true;
         let isHeatmapVisible = false;
+        
+        // VARIABEL PROXIMITY INSPECTION
+        let inspectionCenter = null;
+        let bufferCircle = null;
 
         let polyLayerKab = L.layerGroup(); let polyLayerKec = L.layerGroup(); let polyLayerKel = L.layerGroup(); let polyLayerLineDesa = L.layerGroup(); 
         let layerAdminKab = L.layerGroup(); let layerAdminKec = L.layerGroup(); let layerAdminKel = L.layerGroup();
@@ -236,10 +247,42 @@
             'bg-yellow-400': '#facc15', 'bg-green-500': '#22c55e', 'bg-blue-500': '#3b82f6', 'bg-purple-500': '#a855f7', 'bg-gray-300': '#d1d5db'
         };
 
+        // RUMUS HAVERSINE UNTUK MENGHITUNG JARAK (KM)
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; 
+            const dLat = (lat2 - lat1) * (Math.PI / 180);
+            const dLon = (lon2 - lon1) * (Math.PI / 180);
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))); 
+        }
+
+        // TRIGGER INSPECTION MODE
+        window.enableInspectionMode = function(lat, lng, nama) {
+            inspectionCenter = { lat: lat, lng: lng, name: nama };
+            
+            // Hapus semua filter agar bisa melihat tetangga sekitar secara murni
+            document.getElementById('search-input').value = '';
+            document.getElementById('route-input').value = '';
+            document.getElementById('filter-kab').value = 'ALL';
+            document.getElementById('filter-kec').innerHTML = '<option value="ALL">Semua</option>';
+            document.getElementById('filter-kel').innerHTML = '<option value="ALL">Semua</option>';
+            
+            map.closePopup();
+            map.flyTo([lat, lng], 15, { duration: 0.8 }); // Terbang ke 1KM view
+            processAndRenderLayers();
+            document.getElementById('insight-panel').classList.remove('hidden');
+        };
+
+        window.disableInspectionMode = function() {
+            inspectionCenter = null;
+            if(bufferCircle) { map.removeLayer(bufferCircle); bufferCircle = null; }
+            document.getElementById('insight-panel').classList.add('hidden');
+            processAndRenderLayers();
+        };
+
         function buildStackedBarHTML(colorsCountObj, totalCount, heightCls, fontSize) {
             let gradientStr = ""; let currentPercentage = 0;
             let sortedColors = Object.entries(colorsCountObj).sort((a, b) => b[1] - a[1]);
-            
             if (sortedColors.length === 1) {
                 let hexColor = colorHexMap[sortedColors[0][0]] || '#06367c';
                 gradientStr = `${hexColor} 0%, ${hexColor} 100%`;
@@ -252,7 +295,6 @@
                     currentPercentage += pct;
                 });
             }
-
             return `
                 <div class="rounded-full shadow-lg border-[3px] border-white flex items-center justify-center transition-transform hover:scale-110 z-[1000] px-3 ${heightCls}" 
                      style="background: linear-gradient(to right, ${gradientStr}); color: white; font-size: ${fontSize}; font-weight: 800; min-width: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); text-shadow: 0px 2px 4px rgba(0,0,0,0.8);">
@@ -373,20 +415,14 @@
 
         function getSymbology(item, mode) {
             if (mode === 'PRIORITAS') {
-                let e = (item.kondisiE || "").toLowerCase();
-                let g = (item.kondisiG || "").toLowerCase();
-                let pax = item.avg_pelanggan || 0;
-
-                let isTidakAdaPlang = e.includes("tidak ada");
-                let isAdaPlang = !isTidakAdaPlang; 
-                let isBerbahaya = g.includes("berbahaya");
-                let isBocor = g.includes("bocor"); 
+                let e = (item.kondisiE || "").toLowerCase(); let g = (item.kondisiG || "").toLowerCase(); let pax = item.avg_pelanggan || 0;
+                let isTidakAdaPlang = e.includes("tidak ada"); let isAdaPlang = !isTidakAdaPlang; 
+                let isBerbahaya = g.includes("berbahaya"); let isBocor = g.includes("bocor"); 
 
                 if (isAdaPlang && pax < 3) return { id: "p1", label: "Underutilized", bg: "bg-purple-500", text: "text-white", hex: "#a855f7", icon: "fa-arrow-trend-down" };
                 if (isTidakAdaPlang && pax > 20) return { id: "p2", label: "Add Bus Stop", bg: "bg-blue-500", text: "text-white", hex: "#3b82f6", icon: "fa-plus" };
                 if (isBerbahaya && pax < 5) return { id: "p3", label: "Relokasi / Cabut", bg: "bg-red-600", text: "text-white", hex: "#dc2626", icon: "fa-ban" };
                 if (isBocor && pax > 10) return { id: "p4", label: "Tambah Petugas / Tap", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-user-shield" };
-                
                 return null; 
             }
 
@@ -413,12 +449,11 @@
         }
 
         // =========================================================================
-        // PERFORMA KILAT: PARALLEL FETCHING DATA API & GEOJSON (NO DOUBLE RENDER)
+        // PARALLEL SAFE FETCHING (MENGHILANGKAN LAG 2X RENDER)
         // =========================================================================
         window.addEventListener('DOMContentLoaded', () => {
             const pullFile = (name) => fetch(name).then(r => r.ok ? r.json() : null).catch(() => null);
 
-            // Fetch semua aset secara bersamaan agar tidak tunggu-tungguan
             Promise.all([
                 fetch(API_URL).then(res => { if (!res.ok) throw new Error("API Google Script menolak koneksi."); return res.json(); }),
                 pullFile('Jakarta_Kabupaten_Kota.geojson'),
@@ -459,8 +494,6 @@
                 }
 
                 document.getElementById('loading-badge').classList.add('hidden');
-                
-                // Memicu rendering SATU KALI saja setelah semua data siap
                 populateFilterDropdowns(); 
             }).catch(err => { 
                 alert("GAGAL MENSINKRONKAN DATA SPREADSHEET:\n" + err.message); 
@@ -508,6 +541,10 @@
             let countTotalSearched = 0, countMapRendered = 0, summaryStats = {}, grupKab = {}, grupKec = {}, grupKel = {};
             let markersToBulkAdd = []; 
 
+            // VARIABEL PENGHITUNG INSIGHT PROXIMITY
+            let insHilang = 0, insTerhalang = 0, insRusak = 0, insTotal = 0;
+            if (bufferCircle) { map.removeLayer(bufferCircle); bufferCircle = null; }
+
             allData.forEach(item => {
                 const matchS = !searchVal || item.nama.toLowerCase().includes(searchVal);
                 const matchR = !routeVal || (item.rute && item.rute.toLowerCase().includes(routeVal)); 
@@ -515,7 +552,22 @@
                 const matchKec = kecVal === 'ALL' || (item.kecamatan && item.kecamatan.trim() === kecVal);
                 const matchKel = kelVal === 'ALL' || (item.kelurahan && item.kelurahan.trim() === kelVal);
 
-                if (matchS && matchR && matchKab && matchKec && matchKel) {
+                // LOGIKA PROXIMITY DISTANCE (RADIUS 1 KM)
+                let isWithinProximity = true;
+                if (inspectionCenter) {
+                    const dist = getDistance(inspectionCenter.lat, inspectionCenter.lng, item.lat, item.lng);
+                    if (dist > 1) {
+                        isWithinProximity = false;
+                    } else {
+                        insTotal++;
+                        let textE = (item.kondisiE || "").toLowerCase();
+                        if (textE.includes("tidak ada")) insHilang++;
+                        if (textE.includes("terhalang")) insTerhalang++;
+                        if (textE.includes("rusak")) insRusak++;
+                    }
+                }
+
+                if (matchS && matchR && matchKab && matchKec && matchKel && isWithinProximity) {
                     const sym = getSymbology(item, viewMode);
                     if (!sym) return; 
 
@@ -538,6 +590,15 @@
                     }
                 }
             });
+
+            // PENAMBAHAN LINGKARAN BUFFER DAN TEKS INSIGHT (JIKA MODE INSPEKSI AKTIF)
+            if (inspectionCenter) {
+                bufferCircle = L.circle([inspectionCenter.lat, inspectionCenter.lng], {
+                    color: '#4f46e5', fillColor: '#4f46e5', fillOpacity: 0.08, radius: 1000, weight: 2, dashArray: '5, 5'
+                }).addTo(map);
+
+                document.getElementById('insight-text').innerHTML = `Dalam radius <strong>1 km</strong> dari <strong>${inspectionCenter.name}</strong> terdapat <strong>${insTotal}</strong> Bus Stop.<br>Rincian kondisi: <strong class="text-red-600">${insHilang} hilang/tidak ada</strong>, <strong class="text-orange-500">${insTerhalang} terhalang</strong>, dan <strong class="text-yellow-600">${insRusak} rusak</strong>.`;
+            }
 
             layerTitikDetil.addLayers(markersToBulkAdd);
 
@@ -650,6 +711,9 @@
 
             let trendIcon = item.avg_mei > item.avg_jan ? '<i class="fa-solid fa-arrow-trend-up text-green-500"></i>' : '<i class="fa-solid fa-arrow-trend-down text-red-500"></i>';
 
+            // TOMBOL INSPEKSI DI DALAM POPUP
+            const btnInspeksi = `<button onclick="enableInspectionMode(${item.lat}, ${item.lng}, '${item.nama.replace(/'/g, "\\'")}')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 text-[10px] uppercase tracking-widest transition flex justify-center items-center border-b border-indigo-500"><i class="fa-solid fa-satellite-dish mr-1.5"></i> Inspeksi Radius 1 KM</button>`;
+
             return `
                 <div class="flex flex-col bg-white rounded-xl font-['PT_Sans']">
                     <div class="${sym.bg} ${sym.text} px-4 py-3 flex items-center justify-between rounded-t-xl"><div class="pr-2"><h4 class="font-bold text-[13px] md:text-[15px] uppercase tracking-wider mb-1">${item.nama}</h4><span class="inline-block bg-white/20 backdrop-blur-sm text-${sym.text} text-[9px] md:text-[11px] px-2 py-0.5 rounded shadow-sm border border-white/30"><i class="fa-solid fa-route mr-1.5"></i>RUTE: <strong class="font-bold">${item.rute || '-'}</strong></span></div><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/40 shadow-inner"><i class="fa-solid ${sym.icon} text-lg md:text-xl"></i></div></div>
@@ -675,7 +739,10 @@
                         <div class="flex flex-col"><span class="font-bold text-gray-400 uppercase tracking-wider">Area Tunggu (G)</span><span class="font-bold text-gray-800 text-[12px] md:text-[13px]">${item.kondisiG || '-'}</span></div>
                     </div>
                     <div class="px-4 py-2.5 bg-yellow-50/50 border-t border-gray-100"><span class="block text-[10px] font-bold text-gray-500 uppercase mb-1"><i class="fa-solid fa-comment-dots mr-1"></i> Catatan Surveyor</span><p class="text-[11px] md:text-[12px] text-gray-700 leading-relaxed">${item.keterangan || '<span class="italic opacity-50">Tidak ada catatan</span>'}</p></div>
-                    <div class="flex w-full rounded-b-xl overflow-hidden">${btnDirections}${btnDokumentasi}</div>
+                    <div class="flex flex-col w-full rounded-b-xl overflow-hidden">
+                        ${btnInspeksi}
+                        <div class="flex w-full">${btnDirections}${btnDokumentasi}</div>
+                    </div>
                 </div>`;
         }
 
@@ -702,14 +769,12 @@
             allData.forEach(d => {
                 let pax = d.avg_pelanggan || 0;
                 let e = (d.kondisiE || "").toLowerCase(), f = (d.kondisiF || "").toLowerCase(), g = (d.kondisiG || "").toLowerCase();
-                let isTidakAdaPlang = e.includes("tidak ada");
-                let isAdaPlang = !isTidakAdaPlang;
+                let isTidakAdaPlang = e.includes("tidak ada"); let isAdaPlang = !isTidakAdaPlang;
                 
                 if (g.includes("berbahaya")) bahayaCount++;
                 if (g.includes("bocor")) bocorCount++;
                 if (isTidakAdaPlang || e.includes("rusak") || e.includes("terhalang")) tidakIdealCount++;
                 if (isAdaPlang && pax < 3) underCount++;
-                
                 if (isTidakAdaPlang) tidakAdaCount++;
                 if (f.includes("rusak") || f.includes("vandalisme")) vandalCount++;
 
@@ -736,11 +801,7 @@
                 type: 'bar',
                 data: {
                     labels: topKel.map(k => k[0]),
-                    datasets: [{
-                        label: "Jumlah Bus Stop 'Tidak Ada'",
-                        data: topKel.map(k => k[1]),
-                        backgroundColor: '#ef4444', borderRadius: 4
-                    }]
+                    datasets: [{ label: "Jumlah Bus Stop 'Tidak Ada'", data: topKel.map(k => k[1]), backgroundColor: '#ef4444', borderRadius: 4 }]
                 },
                 options: {
                     indexAxis: 'y', responsive: true, maintainAspectRatio: false,
