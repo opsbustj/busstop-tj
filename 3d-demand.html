@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Demand Spikes - TransJakarta</title>
+    
+    <!-- Tailwind CSS untuk Panel UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Cesium JS Core -->
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.107/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.107/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    
+    <!-- Font -->
+    <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        html, body, #cesiumContainer { 
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; 
+            font-family: 'PT Sans', sans-serif; background-color: #000; 
+        }
+        /* Menghilangkan UI bawaan Cesium yang mengganggu */
+        .cesium-viewer-bottom, .cesium-viewer-fullscreenContainer { display: none !important; }
+        
+        /* Kustomisasi Popup Cesium */
+        .cesium-infoBox { background: rgba(15, 23, 42, 0.9) !important; backdrop-filter: blur(10px); border: 1px solid #334155; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .cesium-infoBox-title { background: transparent !important; color: #F2A900 !important; font-weight: bold; border-bottom: 1px solid #334155; }
+    </style>
+</head>
+<body>
+    
+    <!-- Kontainer Peta 3D -->
+    <div id="cesiumContainer"></div>
+
+    <!-- UI Overlay Elegan -->
+    <div class="absolute top-6 left-6 z-10 bg-black/70 backdrop-blur-lg p-6 rounded-2xl border border-gray-700 text-white min-w-[300px] shadow-[0_0_40px_rgba(0,0,0,0.8)]">
+        <h1 class="text-2xl md:text-3xl font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 mb-1 drop-shadow-lg">
+            Demand Spikes
+        </h1>
+        <p class="text-[10px] md:text-xs text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-700 pb-4">
+            Topografi Kepadatan Bus Stop
+        </p>
+        
+        <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3">Intensitas Penumpang</h3>
+        <div class="space-y-3 text-xs font-bold tracking-wide">
+            <div class="flex items-center"><span class="w-3.5 h-3.5 rounded-full bg-[#f43f5e] mr-3 shadow-[0_0_12px_#f43f5e]"></span> Sangat Tinggi (> 300 Pax)</div>
+            <div class="flex items-center"><span class="w-3.5 h-3.5 rounded-full bg-[#d946ef] mr-3 shadow-[0_0_12px_#d946ef]"></span> Tinggi (100 - 300 Pax)</div>
+            <div class="flex items-center"><span class="w-3.5 h-3.5 rounded-full bg-[#8b5cf6] mr-3 shadow-[0_0_12px_#8b5cf6]"></span> Sedang (50 - 100 Pax)</div>
+            <div class="flex items-center"><span class="w-3.5 h-3.5 rounded-full bg-[#3b82f6] mr-3 shadow-[0_0_12px_#3b82f6]"></span> Rendah (< 50 Pax)</div>
+        </div>
+
+        <div id="loading" class="mt-6 p-3 bg-indigo-900/40 rounded-lg text-center text-xs font-bold text-indigo-300 animate-pulse border border-indigo-500/30">
+            <span class="animate-spin inline-block mr-2">◒</span> Membangun Geometri 3D...
+        </div>
+    </div>
+
+    <script>
+        // 1. INISIALISASI CESIUM VIEWER
+        // Menggunakan basemap gelap (Carto Dark Matter) agar pilar warna-warni menyala kontras
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            imageryProvider: new Cesium.UrlTemplateImageryProvider({
+                url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                credit: ''
+            }),
+            baseLayerPicker: false, geocoder: false, homeButton: false, infoBox: true,
+            sceneModePicker: false, navigationHelpButton: false, animation: false,
+            timeline: false, fullscreenButton: false, selectionIndicator: true
+        });
+
+        // Mematikan pencahayaan matahari agar peta tetap konsisten gelap sinematik
+        viewer.scene.globe.enableLighting = false;
+        viewer.scene.highDynamicRange = true;
+
+        // 2. FETCH DATA DARI API
+        // Menggunakan URL terakhir Anda beserta trik anti-cache
+        const API_URL = "https://script.google.com/macros/s/AKfycbxOHZyJ281fQySVnaCFRj4_7_Jzp_FaJFLOah_Z0wz9d_y2qh9OHnKvLVr2ZpGW91TE/exec?v=" + new Date().getTime();
+
+        fetch(API_URL)
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                
+                data.forEach(item => {
+                    let pax = item.avg_pelanggan || 0;
+                    
+                    // Filter: Jangan gambar pilar jika tidak ada penumpang
+                    if (pax < 1) return;
+
+                    // 3. LOGIKA EKSTRUSI 3D (SKALA TINGGI)
+                    // Jika pelanggan 100 orang, maka tingginya 100 * 20 = 2000 meter (2 km)
+                    // Pengali bisa Anda ubah jika dirasa pilar kurang ekstrem atau terlalu ekstrem
+                    let height = pax * 20.0; 
+                    let radius = 25.0; // Ketebalan tiang pilar (meter)
+
+                    // 4. LOGIKA GRADASI WARNA (HEATMAP COLORS)
+                    let colorHex = '#3b82f6'; // Biru (Rendah)
+                    if (pax >= 300) colorHex = '#f43f5e'; // Merah-Pink (Sangat Tinggi)
+                    else if (pax >= 100) colorHex = '#d946ef'; // Fuchsia/Ungu (Tinggi)
+                    else if (pax >= 50) colorHex = '#8b5cf6'; // Violet (Sedang)
+
+                    let materialColor = Cesium.Color.fromCssColorString(colorHex).withAlpha(0.85);
+
+                    // 5. MEMBANGUN ENTITAS 3D (CYLINDER)
+                    viewer.entities.add({
+                        name: item.nama,
+                        description: `
+                            <div style="font-family:'PT Sans',sans-serif; font-size:13px; color:#e2e8f0;">
+                                <p style="margin:0 0 8px 0; border-bottom:1px solid #475569; padding-bottom:5px;">
+                                    <span style="color:#94a3b8; font-size:10px; display:block; text-transform:uppercase;">Rute Dilayani</span>
+                                    <b>${item.rute || '-'}</b>
+                                </p>
+                                <p style="margin:0 0 5px 0;">
+                                    <span style="color:#94a3b8; font-size:10px; display:block; text-transform:uppercase;">Rata-rata Demand</span>
+                                    <b style="font-size:16px; color:#22c55e;">${pax} Org/Hari</b>
+                                </p>
+                                <p style="margin:5px 0 0 0;">
+                                    <span style="color:#94a3b8; font-size:10px; display:block; text-transform:uppercase;">Hari Terpadat</span>
+                                    <b>${item.hari_terpadat || '-'}</b>
+                                </p>
+                            </div>
+                        `,
+                        // Cesium merender silinder dari titik tengahnya, jadi ketinggian z-axis-nya harus dibagi 2
+                        position: Cesium.Cartesian3.fromDegrees(item.lng, item.lat, height / 2.0),
+                        cylinder: {
+                            length: height,
+                            topRadius: radius,
+                            bottomRadius: radius,
+                            material: materialColor,
+                            outline: false
+                        }
+                    });
+                });
+
+                // 6. ANIMASI KAMERA SINEMATIK
+                // Mengatur kamera di daerah Selatan Jakarta, menatap ke arah Utara (Pusat Kota) dengan posisi sedikit mendongak agar efek 3D-nya terlihat dramatis.
+                viewer.camera.flyTo({
+                    destination: Cesium.Cartesian3.fromDegrees(106.8456, -6.3600, 18000.0), // lng, lat, ketinggian kamera di udara
+                    orientation: {
+                        heading: Cesium.Math.toRadians(0.0), // Menatap Utara lurus
+                        pitch: Cesium.Math.toRadians(-22.0), // Derajat kemiringan kamera (mendongak)
+                        roll: 0.0
+                    },
+                    duration: 4.5 // Durasi terbang (detik)
+                });
+            })
+            .catch(err => {
+                const loader = document.getElementById('loading');
+                loader.innerText = "Koneksi API Terputus!";
+                loader.classList.replace('bg-indigo-900/40', 'bg-red-900/60');
+                loader.classList.replace('text-indigo-300', 'text-red-300');
+                loader.classList.replace('border-indigo-500/30', 'border-red-500/50');
+            });
+    </script>
+</body>
+</html>
