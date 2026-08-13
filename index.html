@@ -244,7 +244,7 @@
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN4a3R0cHNscmFnZWlhcmpxd3plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1ODg1MjEsImV4cCI6MjEwMjE2NDUyMX0.NK8rQdNIQ2p9fCiQxfflrKIevd_5Zie_gMz_1oBQe80"; 
         
         // Memanggil API Supabase
-        const API_URL = `${SUPABASE_URL}/rest/v1/busstop_data?select=*&limit=10000`;
+        const API_URL = `${SUPABASE_URL}/rest/v1/busstop_data?select=*&limit=15000`;
 
         let map, allData = [];
         let currentChart = null, activeLegendFilter = null; 
@@ -347,6 +347,23 @@
             }
         });
 
+        // Layer baru khusus untuk Bodetabek
+        let layerBodetabek = L.markerClusterGroup({
+            chunkedLoading: true, maxClusterRadius: 4, disableClusteringAtZoom: 18, 
+            iconCreateFunction: function(cluster) {
+                const markers = cluster.getAllChildMarkers();
+                let counts = {};
+                markers.forEach(m => {
+                    const bg = m.options.customBg || "bg-tjblue";
+                    counts[bg] = (counts[bg] || 0) + 1;
+                });
+                return L.divIcon({ 
+                    html: buildStackedBarHTML(counts, cluster.getChildCount(), 'h-8', '11px'), 
+                    className: '', iconSize: L.point(40, 32) 
+                });
+            }
+        });
+
         Chart.register(ChartDataLabels);
 
         const cartoLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© CARTO' });
@@ -395,7 +412,7 @@
             } else {
                 icon.className = "fa-solid fa-eye-slash layer-toggle off";
                 map.removeLayer(layerAdminKab); map.removeLayer(layerAdminKec); map.removeLayer(layerAdminKel); 
-                map.removeLayer(layerTitikDetil); map.removeLayer(layerInspection);
+                map.removeLayer(layerTitikDetil); map.removeLayer(layerBodetabek); map.removeLayer(layerInspection);
                 map.removeLayer(polyLayerKab); map.removeLayer(polyLayerKec); map.removeLayer(polyLayerKel); map.removeLayer(polyLayerLineDesa);
             }
         };
@@ -527,7 +544,6 @@
                         lat: isNaN(parsedLat) ? 0 : parsedLat,
                         lng: isNaN(parsedLng) ? 0 : parsedLng,
                         
-                        // INI BAGIAN YANG DIPERBAIKI: 
                         // Menyesuaikan dengan nama kolom yang panjang dari Supabase
                         kondisiE: row['Apakah Bus Stop Tersedia? Bagaimana Kondisinya?'] || "Tidak Ada",
                         kondisiF: row['Apakah Terdapat Papan Informasi Rute? Bagaimana Kondisinya?'] || "Tidak Ada",
@@ -541,7 +557,6 @@
                         kabupaten: row['Kabupaten/Kota'] || row['kabupaten/kota'] || "Tanpa Kabupaten",
                         lokasi: row['Lokasi'] || row['lokasi'] || "",
                         
-                        // Pastikan nama kolom-kolom ini juga sama persis dengan yang ada di Supabase Anda
                         hari_terpadat: row['Hari Terpadat'] || row['hari terpadat'] || "-",
                         avg_jan: Math.round(parseFloat(row['Avg_Jan'] || row['avg_jan'])) || 0,
                         avg_feb: Math.round(parseFloat(row['Avg_Feb'] || row['avg_feb'])) || 0,
@@ -630,10 +645,11 @@
             
             document.getElementById('chart-subtitle').innerText = "Berdasarkan " + subtitleName;
 
-            layerAdminKab.clearLayers(); layerAdminKec.clearLayers(); layerAdminKel.clearLayers(); layerTitikDetil.clearLayers(); layerInspection.clearLayers();
+            layerAdminKab.clearLayers(); layerAdminKec.clearLayers(); layerAdminKel.clearLayers(); layerTitikDetil.clearLayers(); layerBodetabek.clearLayers(); layerInspection.clearLayers();
             let countTotalSearched = 0, countMapRendered = 0, summaryStats = {}, grupKab = {}, grupKec = {}, grupKel = {};
             
-            let markersToBulkAdd = []; 
+            let markersDKI = []; 
+            let markersBodetabek = [];
             let inspectionMarkers = []; 
             let inspectionNamesList = []; 
 
@@ -706,11 +722,18 @@
                         
                         const marker = L.marker([item.lat, item.lng], { icon: markerIcon, customBg: sym.bg, customText: sym.text });
                         marker.bindPopup(() => createPopupContent(item, sym), { className: 'custom-popup', itemData: item });
-                        markersToBulkAdd.push(marker);
-
+                        
+                        // IDE BARU: KABUPATEN DIHITUNG UNTUK SEMUA WILAYAH (DKI & BODETABEK)
                         aggregateDataHierarchy(grupKab, item.kabupaten, item, sym.bg);
-                        aggregateDataHierarchy(grupKec, item.kecamatan, item, sym.bg);
-                        aggregateDataHierarchy(grupKel, item.kelurahan, item, sym.bg);
+
+                        if (isDKI(item.kabupaten)) {
+                            markersDKI.push(marker);
+                            // KECAMATAN & KELURAHAN HANYA DIHITUNG UNTUK DKI
+                            aggregateDataHierarchy(grupKec, item.kecamatan, item, sym.bg);
+                            aggregateDataHierarchy(grupKel, item.kelurahan, item, sym.bg);
+                        } else {
+                            markersBodetabek.push(marker); // Titik fisik Bodetabek masuk wadah terpisah
+                        }
                     }
                 }
             });
@@ -760,7 +783,8 @@
                 }
 
             } else {
-                layerTitikDetil.addLayers(markersToBulkAdd);
+                layerTitikDetil.addLayers(markersDKI);
+                layerBodetabek.addLayers(markersBodetabek);
                 renderSemanticLayer(layerAdminKab, grupKab, "Kabupaten / Kota", "h-11 md:h-12", "15px", 11); 
                 renderSemanticLayer(layerAdminKec, grupKec, "Kecamatan", "h-9 md:h-10", "13px", 13); 
                 renderSemanticLayer(layerAdminKel, grupKel, "Kelurahan", "h-7 md:h-8", "11px", 14);
@@ -809,9 +833,12 @@
 
         function updateActiveMapLayer() {
             const z = map.getZoom(), levelIndicator = document.getElementById('indicator-level');
+            
+            // Bersihkan semua layer setiap kali zoom berubah
             map.removeLayer(layerAdminKab); map.removeLayer(layerAdminKec); map.removeLayer(layerAdminKel); map.removeLayer(layerTitikDetil);
             map.removeLayer(polyLayerKab); map.removeLayer(polyLayerKec); map.removeLayer(polyLayerKel); map.removeLayer(polyLayerLineDesa);
             map.removeLayer(layerInspection);
+            map.removeLayer(layerBodetabek); // Matikan dulu, nanti dinyalakan sesuai kondisi zoom
 
             if (inspectionCenter) {
                 map.addLayer(layerInspection);
@@ -819,10 +846,30 @@
                 return;
             }
 
-            if (z <= 11) { map.addLayer(polyLayerKab); map.addLayer(layerAdminKab); levelIndicator.innerText = "Kabupaten / Kota"; } 
-            else if (z >= 12 && z <= 13) { map.addLayer(polyLayerKec); map.addLayer(layerAdminKec); levelIndicator.innerText = "Kecamatan"; } 
-            else if (z === 14) { map.addLayer(polyLayerKel); map.addLayer(layerAdminKel); levelIndicator.innerText = "Kelurahan"; } 
-            else { map.addLayer(polyLayerLineDesa); map.addLayer(layerTitikDetil); levelIndicator.innerText = "Mode Titik Detil Individual"; }
+            if (z <= 11) { 
+                // LEVEL 1: Tampilkan Gelembung Kabupaten untuk SEMUA (DKI & Bodetabek)
+                map.addLayer(polyLayerKab); map.addLayer(layerAdminKab); 
+                levelIndicator.innerText = "Level: Kabupaten / Kota (Semua Wilayah)"; 
+            } 
+            else if (z >= 12 && z <= 13) { 
+                // LEVEL 2: Kecamatan (Khusus DKI) + Klaster Gelembung Kecil (Luar Kota)
+                map.addLayer(polyLayerKec); map.addLayer(layerAdminKec); 
+                map.addLayer(layerBodetabek);
+                levelIndicator.innerText = "DKI: Kecamatan | Luar DKI: Klaster Spasial"; 
+            } 
+            else if (z === 14) { 
+                // LEVEL 3: Kelurahan (Khusus DKI) + Klaster Gelembung Kecil (Luar Kota)
+                map.addLayer(polyLayerKel); map.addLayer(layerAdminKel); 
+                map.addLayer(layerBodetabek);
+                levelIndicator.innerText = "DKI: Kelurahan | Luar DKI: Klaster Spasial"; 
+            } 
+            else { 
+                // LEVEL 4: Titik Asli untuk Semuanya (DKI & Bodetabek)
+                map.addLayer(polyLayerLineDesa); 
+                map.addLayer(layerTitikDetil); // Titik DKI
+                map.addLayer(layerBodetabek);  // Titik Bodetabek
+                levelIndicator.innerText = "Mode Titik Detil Individual (Semua Wilayah)"; 
+            }
         }
 
         function updateScorecardAndChart(statsArray, totalCount) {
