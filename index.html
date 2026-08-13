@@ -542,14 +542,14 @@
                         lokasi: row['Lokasi'] || row['lokasi'] || "",
                         
                         // Pastikan nama kolom-kolom ini juga sama persis dengan yang ada di Supabase Anda
-                        hari_terpadat: row['Hari_Terpadat'] || row['hari_terpadat'] || "-",
+                        hari_terpadat: row['Hari Terpadat'] || row['hari terpadat'] || "-",
                         avg_jan: Math.round(parseFloat(row['Avg_Jan'] || row['avg_jan'])) || 0,
                         avg_feb: Math.round(parseFloat(row['Avg_Feb'] || row['avg_feb'])) || 0,
                         avg_mar: Math.round(parseFloat(row['Avg_Mar'] || row['avg_mar'])) || 0,
                         avg_apr: Math.round(parseFloat(row['Avg_Apr'] || row['avg_apr'])) || 0,
                         avg_mei: Math.round(parseFloat(row['Avg_Mei'] || row['avg_mei'])) || 0,
-                        avg_juni: Math.round(parseFloat(row['Avg_Juni'] || row['avg_juni'])) || 0,
-                        avg_juli: Math.round(parseFloat(row['Avg_Juli'] || row['avg_juli'])) || 0,
+                        avg_jun: Math.round(parseFloat(row['Avg_Jun'] || row['avg_jun'])) || 0,
+                        avg_jul: Math.round(parseFloat(row['Avg_Jul'] || row['avg_jul'])) || 0,
                         avg_pelanggan: Math.round(parseFloat(row['Avg_Pelanggan'] || row['avg_pelanggan'])) || 0
                     };
                 }).filter(item => item.lat !== 0 && item.lng !== 0);
