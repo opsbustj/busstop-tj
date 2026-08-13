@@ -526,16 +526,22 @@
                         nama: row['Nama Perhentian'] || 'Tanpa Nama', 
                         lat: isNaN(parsedLat) ? 0 : parsedLat,
                         lng: isNaN(parsedLng) ? 0 : parsedLng,
-                        kondisiE: row['KondisiE'] || row['kondisiE'] || "Tidak Ada",
-                        kondisiF: row['KondisiF'] || row['kondisiF'] || "Tidak Ada",
-                        kondisiG: row['KondisiG'] || row['kondisiG'] || "Tidak Ada",
-                        keterangan: row['Keterangan'] || row['keterangan'] || "",
+                        
+                        // INI BAGIAN YANG DIPERBAIKI: 
+                        // Menyesuaikan dengan nama kolom yang panjang dari Supabase
+                        kondisiE: row['Apakah Bus Stop Tersedia? Bagaimana Kondisinya?'] || "Tidak Ada",
+                        kondisiF: row['Apakah Terdapat Papan Informasi Rute? Bagaimana Kondisinya?'] || "Tidak Ada",
+                        kondisiG: row['Bagaimana Kondisi Tempat Tunggu Pelanggan di Bus Stop Tersebut?'] || "Tidak Ada",
+                        
+                        keterangan: row['Keterangan'] || "",
                         dokumentasi: row['Dokumentasi'] || row['dokumentasi'] || "",
                         rute: row['Rute'] || row['rute'] || "",
                         kelurahan: row['Kelurahan'] || row['kelurahan'] || "Tanpa Kelurahan",
                         kecamatan: row['Kecamatan'] || row['kecamatan'] || "Tanpa Kecamatan",
                         kabupaten: row['Kabupaten'] || row['kabupaten'] || "Tanpa Kabupaten",
                         lokasi: row['Lokasi'] || row['lokasi'] || "",
+                        
+                        // Pastikan nama kolom-kolom ini juga sama persis dengan yang ada di Supabase Anda
                         hari_terpadat: row['Hari_Terpadat'] || row['hari_terpadat'] || "-",
                         avg_jan: Math.round(parseFloat(row['Avg_Jan'] || row['avg_jan'])) || 0,
                         avg_feb: Math.round(parseFloat(row['Avg_Feb'] || row['avg_feb'])) || 0,
