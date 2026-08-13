@@ -523,7 +523,7 @@
 
                     return {
                         rowId: index + 1,
-                        nama: row['Nama'] || row['nama'] || '-', 
+                        nama: row['Nama Perhentian'] || 'Tanpa Nama', 
                         lat: isNaN(parsedLat) ? 0 : parsedLat,
                         lng: isNaN(parsedLng) ? 0 : parsedLng,
                         kondisiE: row['KondisiE'] || row['kondisiE'] || "Tidak Ada",
