@@ -74,7 +74,7 @@
             </div>
         </div>
         <div id="loading-badge" class="px-2 md:px-5 py-1 md:py-2 text-[9px] md:text-xs bg-tjorange text-tjblue font-bold rounded-full shadow-md flex items-center shrink-0">
-            <i class="fa-solid fa-satellite-dish mr-1 md:mr-2 animate-spin"></i> <span class="hidden md:inline">Mensinkronisasi Data...</span><span class="inline md:hidden">Sync...</span>
+            <i class="fa-solid fa-satellite-dish mr-1 md:mr-2 animate-spin"></i> <span class="hidden md:inline">Menarik Data Supabase...</span><span class="inline md:hidden">Sync...</span>
         </div>
     </header>
 
@@ -118,8 +118,6 @@
                         <option value="F">Ketersediaan Papan Informasi Rute</option>
                         <option value="G">Kondisi Tempat Tunggu Pelanggan</option>
                         <option value="PRIORITAS" class="font-bold text-red-600">Matriks Prioritas Intervensi</option>
-                        <!-- OPSI BARU: KEPADATAN PENUMPANG -->
-                        <option value="DEMAND" class="font-bold text-green-600">📊 Kepadatan Penumpang (Demand)</option>
                     </select>
                 </div>
 
@@ -239,7 +237,14 @@
 
     <!-- SCRIPT DASHBOARD -->
     <script>
-        const API_URL = "https://script.google.com/macros/s/AKfycbxfvh5bZzzGIW1dMXb6cASztKhhEcgPkDR5fYbR4NwRDYr7G9YeAV7ry1Vkox-nuTgc/exec";
+        // =========================================================
+        // KONEKSI BARU: SUPABASE DATABASE
+        // =========================================================
+        const SUPABASE_URL = "https://cxkttpslrageiarjqwze.supabase.co"; 
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN4a3R0cHNscmFnZWlhcmpxd3plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1ODg1MjEsImV4cCI6MjEwMjE2NDUyMX0.NK8rQdNIQ2p9fCiQxfflrKIevd_5Zie_gMz_1oBQe80"; 
+        
+        // Memanggil API Supabase
+        const API_URL = `${SUPABASE_URL}/rest/v1/busstop_data?select=*&limit=10000`;
 
         let map, allData = [];
         let currentChart = null, activeLegendFilter = null; 
@@ -262,7 +267,7 @@
         
         const colorHexMap = {
             'bg-red-500': '#ef4444', 'bg-red-600': '#dc2626', 'bg-orange-500': '#f97316',
-            'bg-yellow-400': '#facc15', 'bg-green-500': '#22c55e', 'bg-blue-500': '#3b82f6', 'bg-blue-400': '#60a5fa', 'bg-purple-500': '#a855f7', 'bg-gray-300': '#d1d5db'
+            'bg-yellow-400': '#facc15', 'bg-green-500': '#22c55e', 'bg-blue-500': '#3b82f6', 'bg-purple-500': '#a855f7', 'bg-gray-300': '#d1d5db'
         };
 
         function getDistance(lat1, lon1, lat2, lon2) {
@@ -451,15 +456,6 @@
         }
 
         function getSymbology(item, mode) {
-            // MODE BARU: KEPADATAN PENUMPANG (GRADUATED SYMBOLS)
-            if (mode === 'DEMAND') {
-                let pax = item.avg_pelanggan || 0;
-                if (pax > 200) return { id: "d1", label: "Sangat Ramai (> 200 Pax)", bg: "bg-red-500", text: "text-white", hex: "#ef4444", icon: "fa-fire", size: "w-12 h-12 md:w-14 md:h-14", iconSize: "text-xl", anim: "animate-pulse" };
-                if (pax > 50) return { id: "d2", label: "Ramai (50 - 200 Pax)", bg: "bg-orange-500", text: "text-white", hex: "#f97316", icon: "fa-users", size: "w-9 h-9 md:w-11 md:h-11", iconSize: "text-lg", anim: "" };
-                if (pax > 10) return { id: "d3", label: "Sedang (10 - 50 Pax)", bg: "bg-yellow-400", text: "text-gray-900", hex: "#facc15", icon: "fa-user", size: "w-7 h-7 md:w-8 md:h-8", iconSize: "text-sm", anim: "" };
-                return { id: "d4", label: "Sepi (< 10 Pax)", bg: "bg-blue-400", text: "text-white", hex: "#60a5fa", icon: "fa-user-minus", size: "w-5 h-5 md:w-6 md:h-6", iconSize: "text-[10px]", anim: "" };
-            }
-
             if (mode === 'PRIORITAS') {
                 let e = (item.kondisiE || "").toLowerCase(); let g = (item.kondisiG || "").toLowerCase(); let pax = item.avg_pelanggan || 0;
                 let isTidakAdaPlang = e.includes("tidak ada"); let isAdaPlang = !isTidakAdaPlang; 
@@ -496,10 +492,18 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             const pullFile = (name) => fetch(name).then(r => r.ok ? r.json() : null).catch(() => null);
-            const FRESH_API_URL = API_URL + "?v=" + new Date().getTime();
 
             Promise.all([
-                fetch(FRESH_API_URL).then(res => { if (!res.ok) throw new Error("API Google Script menolak koneksi."); return res.json(); }),
+                fetch(API_URL, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                    }
+                }).then(res => { 
+                    if (!res.ok) throw new Error("Gagal terhubung ke Supabase. Periksa RLS Policy Anda."); 
+                    return res.json(); 
+                }),
                 pullFile('Jakarta_Kabupaten_Kota.geojson'),
                 pullFile('Jakarta_Kecamatan.geojson'),
                 pullFile('Jakarta_Desa.geojson'),
@@ -507,7 +511,42 @@
                 pullFile('laka_pasif.geojson')
             ]).then(([apiData, shpKab, shpKec, shpKel, shpKelGaris, lakaData]) => {
                 if(apiData.error) { alert("Error database: " + apiData.error); return; }
-                allData = apiData;
+                
+                document.getElementById('loading-badge').classList.add('hidden');
+
+                // Pemecahan format koordinat teks dari Supabase
+                allData = apiData.map((row, index) => {
+                    let rawCoord = row['Koordinat'] || row['koordinat'] || "0,0";
+                    let coords = rawCoord.toString().split(",");
+                    let parsedLat = parseFloat(coords[0]);
+                    let parsedLng = parseFloat(coords[1]);
+
+                    return {
+                        rowId: index + 1,
+                        nama: row['Nama'] || row['nama'] || '-', 
+                        lat: isNaN(parsedLat) ? 0 : parsedLat,
+                        lng: isNaN(parsedLng) ? 0 : parsedLng,
+                        kondisiE: row['KondisiE'] || row['kondisiE'] || "Tidak Ada",
+                        kondisiF: row['KondisiF'] || row['kondisiF'] || "Tidak Ada",
+                        kondisiG: row['KondisiG'] || row['kondisiG'] || "Tidak Ada",
+                        keterangan: row['Keterangan'] || row['keterangan'] || "",
+                        dokumentasi: row['Dokumentasi'] || row['dokumentasi'] || "",
+                        rute: row['Rute'] || row['rute'] || "",
+                        kelurahan: row['Kelurahan'] || row['kelurahan'] || "Tanpa Kelurahan",
+                        kecamatan: row['Kecamatan'] || row['kecamatan'] || "Tanpa Kecamatan",
+                        kabupaten: row['Kabupaten'] || row['kabupaten'] || "Tanpa Kabupaten",
+                        lokasi: row['Lokasi'] || row['lokasi'] || "",
+                        hari_terpadat: row['Hari_Terpadat'] || row['hari_terpadat'] || "-",
+                        avg_jan: Math.round(parseFloat(row['Avg_Jan'] || row['avg_jan'])) || 0,
+                        avg_feb: Math.round(parseFloat(row['Avg_Feb'] || row['avg_feb'])) || 0,
+                        avg_mar: Math.round(parseFloat(row['Avg_Mar'] || row['avg_mar'])) || 0,
+                        avg_apr: Math.round(parseFloat(row['Avg_Apr'] || row['avg_apr'])) || 0,
+                        avg_mei: Math.round(parseFloat(row['Avg_Mei'] || row['avg_mei'])) || 0,
+                        avg_juni: Math.round(parseFloat(row['Avg_Juni'] || row['avg_juni'])) || 0,
+                        avg_juli: Math.round(parseFloat(row['Avg_Juli'] || row['avg_juli'])) || 0,
+                        avg_pelanggan: Math.round(parseFloat(row['Avg_Pelanggan'] || row['avg_pelanggan'])) || 0
+                    };
+                }).filter(item => item.lat !== 0 && item.lng !== 0);
                 
                 let totalD = 0, countD = 0;
                 allData.forEach(d => { if(d.avg_pelanggan > 0) { totalD += d.avg_pelanggan; countD++; } });
@@ -537,10 +576,9 @@
                     heatLayer.setLatLngs(hPts); 
                 }
 
-                document.getElementById('loading-badge').classList.add('hidden');
                 populateFilterDropdowns(); 
             }).catch(err => { 
-                alert("GAGAL MENSINKRONKAN DATA SPREADSHEET:\n" + err.message); 
+                alert("GAGAL MENARIK DATA: \n" + err.message); 
                 document.getElementById('loading-badge').classList.add('hidden'); 
             });
         });
@@ -578,13 +616,11 @@
             const kabVal = document.getElementById('filter-kab').value, kecVal = document.getElementById('filter-kec').value, kelVal = document.getElementById('filter-kel').value;
             const viewMode = document.getElementById('view-mode').value;
             
-            // Konversi Nama Mode untuk Chart
             let subtitleName = viewMode;
             if(viewMode === 'E') subtitleName = 'Ketersediaan Bus Stop';
             else if(viewMode === 'F') subtitleName = 'Papan Informasi Rute';
             else if(viewMode === 'G') subtitleName = 'Kondisi Tempat Tunggu';
             else if(viewMode === 'PRIORITAS') subtitleName = 'Matriks Prioritas Intervensi';
-            else if(viewMode === 'DEMAND') subtitleName = 'Kepadatan Penumpang';
             
             document.getElementById('chart-subtitle').innerText = "Berdasarkan " + subtitleName;
 
@@ -653,18 +689,13 @@
                     if (!sym) return; 
 
                     countTotalSearched++;
-                    if(!summaryStats[sym.id]) summaryStats[sym.id] = { id: sym.id, label: sym.label, count: 0, hex: sym.hex, bg: sym.bg, text: sym.text, icon: sym.icon, sizeClass: sym.size };
+                    if(!summaryStats[sym.id]) summaryStats[sym.id] = { id: sym.id, label: sym.label, count: 0, hex: sym.hex, bg: sym.bg, text: sym.text, icon: sym.icon };
                     summaryStats[sym.id].count++;
 
                     if (!activeLegendFilter || activeLegendFilter === sym.id) {
                         countMapRendered++;
                         
-                        // LOGIKA UKURAN DINAMIS (GRADUATED SYMBOL)
-                        let bubbleSize = sym.size || "w-7 h-7 md:w-8 md:h-8";
-                        let iconSize = sym.iconSize || "text-[11px] md:text-[13px]";
-                        let anim = sym.anim || "";
-                        
-                        const htmlIcon = `<div class="${bubbleSize} rounded-full ${sym.bg} ${sym.text} border-2 border-white flex items-center justify-center shadow-lg hover:scale-125 transition-transform ${anim}"><i class="fa-solid ${sym.icon} ${iconSize}"></i></div>`;
+                        const htmlIcon = `<div class="w-7 h-7 md:w-8 md:h-8 rounded-full ${sym.bg} ${sym.text} border-2 border-white flex items-center justify-center shadow-lg hover:scale-125 transition-transform"><i class="fa-solid ${sym.icon} text-[11px] md:text-[13px]"></i></div>`;
                         const markerIcon = L.divIcon({ html: htmlIcon, className: '', iconSize: L.point(40,40), iconAnchor: [20,20] });
                         
                         const marker = L.marker([item.lat, item.lng], { icon: markerIcon, customBg: sym.bg, customText: sym.text });
@@ -797,7 +828,6 @@
                 const isActive = activeLegendFilter === stat.id;
                 const ringClass = isActive ? 'ring-2 ring-tjblue ring-offset-2 bg-blue-50' : 'bg-gray-50';
 
-                // Kunci UI: Legenda akan tetap menampilkan ukuran standar (w-7 h-7) agar list tidak terlihat berantakan
                 legendDiv.innerHTML += `
                     <div onclick="toggleLegendFilter('${stat.id}')" class="legend-item flex items-center justify-between ${ringClass} ${!isActive && activeLegendFilter ? 'opacity-40 grayscale' : ''} p-2 rounded-lg border border-gray-200 cursor-pointer transition-all duration-200">
                         <div class="flex items-center">
@@ -851,7 +881,7 @@
 
             return `
                 <div class="flex flex-col bg-white rounded-xl font-['PT_Sans']">
-                    <div class="bg-gray-800 text-white px-4 py-3 flex items-center justify-between rounded-t-xl"><div class="pr-2"><h4 class="font-bold text-[13px] md:text-[15px] uppercase tracking-wider mb-1">${item.nama}</h4><span class="inline-block bg-white/20 backdrop-blur-sm text-white text-[9px] md:text-[11px] px-2 py-0.5 rounded shadow-sm border border-white/30"><i class="fa-solid fa-route mr-1.5"></i>RUTE: <strong class="font-bold">${item.rute || '-'}</strong></span></div><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/40 shadow-inner"><i class="fa-solid fa-info-circle text-lg md:text-xl"></i></div></div>
+                    <div class="${sym.bg} ${sym.text} px-4 py-3 flex items-center justify-between rounded-t-xl"><div class="pr-2"><h4 class="font-bold text-[13px] md:text-[15px] uppercase tracking-wider mb-1">${item.nama}</h4><span class="inline-block bg-white/20 backdrop-blur-sm text-${sym.text} text-[9px] md:text-[11px] px-2 py-0.5 rounded shadow-sm border border-white/30"><i class="fa-solid fa-route mr-1.5"></i>RUTE: <strong class="font-bold">${item.rute || '-'}</strong></span></div><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/40 shadow-inner"><i class="fa-solid ${sym.icon} text-lg md:text-xl"></i></div></div>
                     
                     <div class="px-4 py-3 bg-blue-50 border-b border-gray-200">
                         <div class="flex justify-between items-start mb-2 border-b border-blue-100 pb-2">
